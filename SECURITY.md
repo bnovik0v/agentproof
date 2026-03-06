@@ -9,9 +9,8 @@ authentication or anti-fraud decisions.
 ## Reporting
 
 Report vulnerabilities privately through GitHub security advisories or direct
-maintainer contact before public disclosure.
+maintainer contact at `bnovikov012@gmail.com` before public disclosure.
 
 ## Supported versions
 
 Only the latest minor release is supported for security fixes.
-

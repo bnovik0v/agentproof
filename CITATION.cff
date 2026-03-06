@@ -1,0 +1,10 @@
+cff-version: 1.2.0
+title: agentproof
+message: If you use this project, please cite the repository.
+type: software
+authors:
+  - family-names: Novikov
+    given-names: Borislav
+    email: bnovikov012@gmail.com
+repository-code: https://github.com/bnovik0v/agentproof
+license: MIT

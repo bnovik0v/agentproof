@@ -1,0 +1,33 @@
+name: Bug report
+description: Report a reproducible defect in agentproof
+title: "[bug] "
+labels: ["bug"]
+body:
+  - type: textarea
+    id: summary
+    attributes:
+      label: Summary
+      description: What happened and what did you expect instead?
+    validations:
+      required: true
+  - type: textarea
+    id: reproduction
+    attributes:
+      label: Reproduction
+      description: Provide minimal code, inputs, or steps.
+      render: python
+    validations:
+      required: true
+  - type: input
+    id: version
+    attributes:
+      label: agentproof version
+      placeholder: 0.1.0
+    validations:
+      required: true
+  - type: textarea
+    id: environment
+    attributes:
+      label: Environment
+      description: Python version, OS, and any relevant framework/runtime details.
+

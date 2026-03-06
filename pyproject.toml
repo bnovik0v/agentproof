@@ -3,14 +3,14 @@ requires = ["hatchling>=1.27"]
 build-backend = "hatchling.build"
 
 [project]
-name = "agentproof"
+name = "agentproof-ai"
 version = "0.1.0"
 description = "Agent-oriented verification challenges for Python applications."
 readme = "README.md"
 license = "MIT"
 requires-python = ">=3.10"
 authors = [
-  { name = "Borislav" },
+  { name = "Borislav", email = "bnovikov012@gmail.com" },
 ]
 keywords = [
   "agent",
@@ -46,15 +46,20 @@ docs = [
   "mkdocs>=1.6",
   "mkdocs-material>=9.6",
 ]
+demo = [
+  "fastapi>=0.115",
+  "httpx>=0.28",
+  "uvicorn>=0.34",
+]
 
 [project.scripts]
 agentproof = "agentproof.cli:main"
 
 [project.urls]
-Homepage = "https://github.com/borislav/agentproof"
-Documentation = "https://borislav.github.io/agentproof/"
-Issues = "https://github.com/borislav/agentproof/issues"
-Source = "https://github.com/borislav/agentproof"
+Homepage = "https://github.com/bnovik0v/agentproof"
+Documentation = "https://bnovik0v.github.io/agentproof/"
+Issues = "https://github.com/bnovik0v/agentproof/issues"
+Source = "https://github.com/bnovik0v/agentproof"
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/agentproof"]
@@ -78,6 +83,9 @@ select = [
   "SIM",
   "C4",
 ]
+
+[tool.ruff.lint.per-file-ignores]
+"demo/app.py" = ["E402", "I001"]
 
 [tool.mypy]
 python_version = "3.10"
