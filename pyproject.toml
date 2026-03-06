@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "agentproof-ai"
-version = "0.1.0"
+version = "0.1.1"
 description = "Agent-oriented verification challenges for Python applications."
 readme = "README.md"
 license = "MIT"
