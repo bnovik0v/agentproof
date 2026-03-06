@@ -1,0 +1,11 @@
+site_name: agentproof
+site_url: https://borislav.github.io/agentproof/
+repo_url: https://github.com/borislav/agentproof
+theme:
+  name: material
+nav:
+  - Home: index.md
+  - Concepts: concepts.md
+  - Threat Model: threat-model.md
+  - API: api.md
+  - Examples: examples.md

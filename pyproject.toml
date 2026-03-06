@@ -1,0 +1,89 @@
+[build-system]
+requires = ["hatchling>=1.27"]
+build-backend = "hatchling.build"
+
+[project]
+name = "agentproof"
+version = "0.1.0"
+description = "Agent-oriented verification challenges for Python applications."
+readme = "README.md"
+license = "MIT"
+requires-python = ">=3.10"
+authors = [
+  { name = "Borislav" },
+]
+keywords = [
+  "agent",
+  "captcha",
+  "verification",
+  "challenge-response",
+  "ai",
+]
+classifiers = [
+  "Development Status :: 3 - Alpha",
+  "Intended Audience :: Developers",
+  "License :: OSI Approved :: MIT License",
+  "Programming Language :: Python :: 3",
+  "Programming Language :: Python :: 3.10",
+  "Programming Language :: Python :: 3.11",
+  "Programming Language :: Python :: 3.12",
+  "Programming Language :: Python :: 3.13",
+  "Topic :: Internet",
+  "Topic :: Security",
+  "Typing :: Typed",
+]
+dependencies = []
+
+[project.optional-dependencies]
+dev = [
+  "build>=1.2.2",
+  "mypy>=1.15",
+  "pytest>=8.3",
+  "pytest-cov>=6.0",
+  "ruff>=0.11",
+]
+docs = [
+  "mkdocs>=1.6",
+  "mkdocs-material>=9.6",
+]
+
+[project.scripts]
+agentproof = "agentproof.cli:main"
+
+[project.urls]
+Homepage = "https://github.com/borislav/agentproof"
+Documentation = "https://borislav.github.io/agentproof/"
+Issues = "https://github.com/borislav/agentproof/issues"
+Source = "https://github.com/borislav/agentproof"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/agentproof"]
+
+[tool.pytest.ini_options]
+minversion = "8.0"
+addopts = "--strict-config --strict-markers --cov=agentproof --cov-fail-under=90 --cov-report=term-missing --cov-report=xml"
+testpaths = ["tests"]
+
+[tool.ruff]
+target-version = "py310"
+line-length = 100
+
+[tool.ruff.lint]
+select = [
+  "E",
+  "F",
+  "I",
+  "B",
+  "UP",
+  "SIM",
+  "C4",
+]
+
+[tool.mypy]
+python_version = "3.10"
+strict = true
+warn_unused_ignores = true
+warn_redundant_casts = true
+warn_unreachable = true
+show_error_codes = true
+packages = ["agentproof"]
