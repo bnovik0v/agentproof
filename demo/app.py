@@ -600,9 +600,6 @@ def load_challenge(payload: dict[str, Any]) -> Challenge | None:
     challenge_id = payload.get("challenge_id")
     if isinstance(challenge_id, str):
         return ISSUED_CHALLENGES.get(challenge_id)
-    challenge_data = payload.get("challenge")
-    if isinstance(challenge_data, dict):
-        return Challenge(**challenge_data)
     return None
 
 

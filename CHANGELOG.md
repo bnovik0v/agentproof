@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.2.1 - 2026-03-07
+
+- Made `obfuscated_text_lock` fail gracefully when verifying from a public-only challenge payload
+- Removed the demo server fallback that trusted client-supplied challenge objects during verification
+- Added regression tests for public challenge verification and demo challenge-ID enforcement
+
 ## 0.2.0 - 2026-03-07
 
 - Repositioned `agentproof` as an LLM-capability CAPTCHA library

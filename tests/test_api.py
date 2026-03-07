@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from datetime import timedelta
+from typing import Any, cast
 
 import pytest
 
@@ -95,6 +96,20 @@ def test_obfuscated_text_rejects_wrong_answer() -> None:
     result = verify_response(challenge, response)
     assert not result.ok
     assert result.reason == "answer_mismatch"
+
+
+def test_obfuscated_text_public_roundtrip_fails_gracefully() -> None:
+    challenge = generate_challenge(ChallengeSpec(challenge_type="obfuscated_text_lock"))
+    public_payload = cast(dict[str, Any], challenge.to_dict())
+    public_only = Challenge(**public_payload)
+    response = AgentResponse(
+        challenge_id=public_only.challenge_id,
+        challenge_type=public_only.challenge_type,
+        payload={"answer": "NOT-IMPORTANT"},
+    )
+    result = verify_response(public_only, response)
+    assert not result.ok
+    assert result.reason == "missing_private_verification_data"
 
 
 def test_semantic_math_rejects_wrong_word_count() -> None:

@@ -134,3 +134,36 @@ def test_cli_solve_obfuscated_returns_nonzero(tmp_path: Path) -> None:
         exit_code = main(["solve", str(challenge_file)])
     assert exit_code == 2
     assert "no built-in solver" in stderr.getvalue()
+
+
+def test_cli_verify_public_obfuscated_file_fails_cleanly(tmp_path: Path) -> None:
+    internal_file = tmp_path / "challenge.internal.json"
+    public_file = tmp_path / "challenge.public.json"
+    response_file = tmp_path / "response.json"
+    result_file = tmp_path / "result.json"
+
+    assert (
+        main(
+            [
+                "generate",
+                "obfuscated_text_lock",
+                "--output",
+                str(internal_file),
+                "--public-output",
+                str(public_file),
+            ]
+        )
+        == 0
+    )
+
+    public_challenge = json.loads(public_file.read_text(encoding="utf-8"))
+    response = {
+        "challenge_id": public_challenge["challenge_id"],
+        "challenge_type": public_challenge["challenge_type"],
+        "payload": {"answer": "WRONG-ANSWER"},
+    }
+    response_file.write_text(json.dumps(response), encoding="utf-8")
+
+    assert main(["verify", str(public_file), str(response_file), "--output", str(result_file)]) == 1
+    result = json.loads(result_file.read_text(encoding="utf-8"))
+    assert result["reason"] == "missing_private_verification_data"

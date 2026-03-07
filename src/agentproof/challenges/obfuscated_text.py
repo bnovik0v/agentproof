@@ -98,6 +98,12 @@ class ObfuscatedTextHandler:
             return VerificationResult.failure("challenge_type_mismatch")
         if utc_now() > parse_datetime(challenge.expires_at):
             return VerificationResult.failure("challenge_expired")
+        expected_answer = challenge.private_data.get("expected_answer")
+        if not isinstance(expected_answer, str):
+            return VerificationResult.failure("missing_private_verification_data")
+        template_id = challenge.private_data.get("template_id")
+        if not isinstance(template_id, str):
+            return VerificationResult.failure("missing_private_verification_data")
         answer = response.payload.get("answer")
         if not isinstance(answer, str) or not answer.strip():
             return VerificationResult.failure("missing_answer")
@@ -107,7 +113,6 @@ class ObfuscatedTextHandler:
         normalized_answer = answer.strip().upper()
         if not _is_hyphen_answer(normalized_answer):
             return VerificationResult.failure("invalid_answer_format")
-        expected_answer = self._expected_answer(challenge)
         if normalized_answer != expected_answer:
             return VerificationResult.failure(
                 "answer_mismatch",
@@ -115,7 +120,7 @@ class ObfuscatedTextHandler:
             )
         return VerificationResult.success(
             answer=normalized_answer,
-            template_id=self._template_id(challenge),
+            template_id=template_id,
             difficulty=challenge.data.get("difficulty"),
         )
 
@@ -140,21 +145,6 @@ class ObfuscatedTextHandler:
             "echo_reverse": _build_echo_reverse,
             "vowel_count": _build_vowel_count,
         }
-
-    @staticmethod
-    def _expected_answer(challenge: Challenge) -> str:
-        expected_answer = challenge.private_data.get("expected_answer")
-        if not isinstance(expected_answer, str):
-            raise ValueError("obfuscated_text_lock challenge is missing private expected_answer")
-        return expected_answer
-
-    @staticmethod
-    def _template_id(challenge: Challenge) -> str:
-        template_id = challenge.private_data.get("template_id")
-        if not isinstance(template_id, str):
-            raise ValueError("obfuscated_text_lock challenge is missing private template_id")
-        return template_id
-
 
 def _build_amber_sort(rng: random.Random) -> tuple[list[str], str]:
     amber_words = rng.sample(TOKEN_POOL, 3)
