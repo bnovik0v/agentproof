@@ -5,6 +5,7 @@
 ```python
 from agentproof import generate_challenge, solve_challenge, verify_response
 from agentproof import ChallengeSpec, Challenge, AgentResponse, VerificationResult
+from agentproof import SolverUnavailableError
 ```
 
 ## `ChallengeSpec`
@@ -22,9 +23,10 @@ Example:
 
 ```python
 spec = ChallengeSpec(
-    challenge_type="semantic_math_lock",
+    challenge_type="obfuscated_text_lock",
+    difficulty=2,
     ttl_seconds=90,
-    options={"topic": "security", "word_count": 7},
+    options={"template": "amber_sort"},
 )
 ```
 
@@ -41,6 +43,13 @@ Important fields:
 - `expires_at`
 - `data`
 - `version`
+
+Important methods:
+
+- `challenge.to_dict()`
+  Safe public JSON without private verification data.
+- `challenge.to_internal_dict()`
+  Server-side JSON including `private_data` for later verification.
 
 ## `AgentResponse`
 
@@ -69,8 +78,9 @@ Common success value:
   "ok": true,
   "reason": "ok",
   "details": {
-    "nonce": "223",
-    "hash": "00bf9b61..."
+    "answer": "EMBER-HARBOR-SIGNAL",
+    "template_id": "amber_sort",
+    "difficulty": 2
   }
 }
 ```
@@ -80,6 +90,9 @@ Common failure values:
 - `challenge_id_mismatch`
 - `challenge_type_mismatch`
 - `challenge_expired`
+- `missing_answer`
+- `invalid_answer_format`
+- `answer_mismatch`
 - `missing_nonce`
 - `missing_hash`
 - `hash_mismatch`
@@ -89,3 +102,13 @@ Common failure values:
 - `required_word_constraint_failed`
 - `initial_sum_mismatch`
 
+## Solver availability
+
+`solve_challenge(...)` works for:
+
+- `proof_of_work`
+- `semantic_math_lock`
+
+`solve_challenge(...)` raises `SolverUnavailableError` for:
+
+- `obfuscated_text_lock`

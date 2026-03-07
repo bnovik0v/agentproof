@@ -4,8 +4,8 @@ build-backend = "hatchling.build"
 
 [project]
 name = "agentproof-ai"
-version = "0.1.1"
-description = "Agent-oriented verification challenges for Python applications."
+version = "0.2.0"
+description = "LLM-capability CAPTCHA and obfuscated verification challenges for Python applications."
 readme = "README.md"
 license = "MIT"
 requires-python = ">=3.10"
@@ -13,8 +13,10 @@ authors = [
   { name = "Borislav", email = "bnovikov012@gmail.com" },
 ]
 keywords = [
+  "llm",
   "agent",
   "captcha",
+  "obfuscation",
   "verification",
   "challenge-response",
   "ai",

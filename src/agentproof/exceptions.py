@@ -16,3 +16,6 @@ class InvalidChallengeError(AgentProofError):
 class InvalidResponseError(AgentProofError):
     """Raised when response data is malformed."""
 
+
+class SolverUnavailableError(AgentProofError):
+    """Raised when a challenge family intentionally has no built-in solver."""

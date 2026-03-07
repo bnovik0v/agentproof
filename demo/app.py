@@ -15,11 +15,18 @@ SRC = ROOT / "src"
 if str(SRC) not in sys.path:
     sys.path.insert(0, str(SRC))
 
-from agentproof import ChallengeSpec, generate_challenge, solve_challenge, verify_response  # noqa: E402
+from agentproof import (  # noqa: E402
+    ChallengeSpec,
+    SolverUnavailableError,
+    generate_challenge,
+    solve_challenge,
+    verify_response,
+)
 from agentproof.models import AgentResponse, Challenge  # noqa: E402
 
 HOST = os.environ.get("AGENTPROOF_DEMO_HOST", "127.0.0.1")
 PORT = int(os.environ.get("AGENTPROOF_DEMO_PORT", "8765"))
+ISSUED_CHALLENGES: dict[str, Challenge] = {}
 
 HTML = """<!doctype html>
 <html lang="en">
@@ -262,29 +269,29 @@ HTML = """<!doctype html>
     <section class="hero">
       <article class="card">
         <div class="eyebrow">agentproof local playground</div>
-        <h1 class="title">Watch the challenge-response loop happen live.</h1>
+        <h1 class="title">Probe for LLM-capable behavior with obfuscated instructions.</h1>
         <p class="lede">
-          This demo uses the local <code>agentproof</code> package directly. Generate a challenge,
-          let the reference solver answer it, tamper with the payload if you want, and verify the
-          result without any external service.
+          This demo keeps the verification copy server-side. Generate a public challenge, paste an
+          LLM-produced response for the obfuscated flow, or use the built-in solver for the legacy
+          baseline families and then verify the result locally.
         </p>
       </article>
       <aside class="card stats">
         <div class="stat">
-          <strong>Challenge families</strong>
-          Proof of work and semantic math lock
+          <strong>Primary family</strong>
+          obfuscated_text_lock
         </div>
         <div class="stat">
-          <strong>Server stack</strong>
-          Pure Python standard library
+          <strong>Intent</strong>
+          LLM-capability CAPTCHA
         </div>
         <div class="stat">
           <strong>Verification</strong>
-          Deterministic JSON payload checks
+          Deterministic server-side payload checks
         </div>
         <div class="stat">
           <strong>Best used for</strong>
-          Manual inspection and local demos
+          Manual inspection and local LLM trials
         </div>
       </aside>
     </section>
@@ -294,13 +301,22 @@ HTML = """<!doctype html>
         <div class="field">
           <label for="challengeType">Challenge type</label>
           <select id="challengeType">
+            <option value="obfuscated_text_lock" selected>obfuscated_text_lock</option>
             <option value="proof_of_work">proof_of_work</option>
             <option value="semantic_math_lock">semantic_math_lock</option>
           </select>
         </div>
         <div class="field">
+          <label for="template">Obfuscated template</label>
+          <select id="template">
+            <option value="amber_sort">amber_sort</option>
+            <option value="echo_reverse">echo_reverse</option>
+            <option value="vowel_count">vowel_count</option>
+          </select>
+        </div>
+        <div class="field">
           <label for="difficulty">Difficulty</label>
-          <input id="difficulty" type="number" min="0" value="16">
+          <input id="difficulty" type="number" min="1" max="3" value="2">
         </div>
         <div class="field">
           <label for="ttl">TTL seconds</label>
@@ -320,11 +336,13 @@ HTML = """<!doctype html>
         </div>
         <div class="buttons">
           <button class="primary" id="generateButton">1. Generate challenge</button>
-          <button class="secondary" id="solveButton">2. Auto-solve</button>
+          <button class="secondary" id="solveButton">2. Built-in solve baseline</button>
           <button class="ghost" id="verifyButton">3. Verify response</button>
         </div>
         <p class="hint">
-          Edit the response JSON before verifying if you want to see a failure mode.
+          For <code>obfuscated_text_lock</code>, paste an LLM-produced JSON
+          response into the editor.
+          The built-in solver button is only for the baseline families.
         </p>
       </aside>
 
@@ -366,6 +384,7 @@ HTML = """<!doctype html>
     const challengeType = document.getElementById("challengeType");
     const difficulty = document.getElementById("difficulty");
     const ttl = document.getElementById("ttl");
+    const template = document.getElementById("template");
     const topic = document.getElementById("topic");
     const wordCount = document.getElementById("wordCount");
     const promptText = document.getElementById("promptText");
@@ -380,53 +399,104 @@ HTML = """<!doctype html>
       statusBox.className = "status " + (ok ? "good" : "bad");
     }
 
+    function scaffoldResponse(challenge) {
+      const payload = { answer: "PASTE-LLM-ANSWER-HERE" };
+      if (challenge.challenge_type !== "obfuscated_text_lock") {
+        return {};
+      }
+      return {
+        challenge_id: challenge.challenge_id,
+        challenge_type: challenge.challenge_type,
+        payload,
+      };
+    }
+
     async function postJson(url, payload) {
       const response = await fetch(url, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload),
       });
+      const responseBody = await response.text();
       if (!response.ok) {
-        const text = await response.text();
-        throw new Error(text || "Request failed");
+        const text = responseBody || "Request failed";
+        throw new Error(text);
       }
-      return response.json();
+      return JSON.parse(responseBody || "{}");
     }
 
+    challengeType.addEventListener("change", () => {
+      const isSemantic = challengeType.value === "semantic_math_lock";
+      const isObfuscated = challengeType.value === "obfuscated_text_lock";
+      topic.disabled = !isSemantic;
+      wordCount.disabled = !isSemantic;
+      template.disabled = !isObfuscated;
+      difficulty.max = isObfuscated ? "3" : "64";
+      if (isObfuscated) {
+        difficulty.value = "2";
+      } else if (difficulty.value === "2") {
+        difficulty.value = "16";
+      }
+    });
+
     document.getElementById("generateButton").addEventListener("click", async () => {
-      const payload = {
-        challenge_type: challengeType.value,
-        difficulty: Number(difficulty.value),
-        ttl_seconds: Number(ttl.value),
-        topic: topic.value,
-        word_count: Number(wordCount.value),
-      };
-      const challenge = await postJson("/api/challenge", payload);
-      promptText.textContent = challenge.prompt;
-      challengeBadge.textContent = challenge.challenge_type + " • " + challenge.challenge_id;
-      challengeJson.textContent = JSON.stringify(challenge, null, 2);
-      responseEditor.value = "{}";
-      resultJson.textContent = "{}";
-      setStatus(false, "Challenge generated. Solve it next.");
+      try {
+        const payload = {
+          challenge_type: challengeType.value,
+          difficulty: Number(difficulty.value),
+          ttl_seconds: Number(ttl.value),
+          template: template.value,
+          topic: topic.value,
+          word_count: Number(wordCount.value),
+        };
+        const challenge = await postJson("/api/challenge", payload);
+        promptText.textContent = challenge.prompt;
+        challengeBadge.textContent = challenge.challenge_type + " • " + challenge.challenge_id;
+        challengeJson.textContent = JSON.stringify(challenge, null, 2);
+        responseEditor.value = JSON.stringify(scaffoldResponse(challenge), null, 2);
+        resultJson.textContent = "{}";
+        setStatus(
+          false,
+          challenge.challenge_type === "obfuscated_text_lock"
+            ? "Public challenge generated. Send it to an LLM-capable client, "
+              + "then paste the JSON response."
+            : "Challenge generated. You can use the built-in solver or edit a response manually.",
+        );
+      } catch (error) {
+        setStatus(false, error.message);
+      }
     });
 
     document.getElementById("solveButton").addEventListener("click", async () => {
-      const challenge = JSON.parse(challengeJson.textContent);
-      const response = await postJson("/api/solve", challenge);
-      responseEditor.value = JSON.stringify(response, null, 2);
-      setStatus(false, "Response generated. Verify it or edit it first.");
+      try {
+        const challenge = JSON.parse(challengeJson.textContent);
+        const response = await postJson("/api/solve", { challenge_id: challenge.challenge_id });
+        responseEditor.value = JSON.stringify(response, null, 2);
+        setStatus(false, "Response generated. Verify it or edit it first.");
+      } catch (error) {
+        setStatus(false, error.message);
+      }
     });
 
     document.getElementById("verifyButton").addEventListener("click", async () => {
-      const challenge = JSON.parse(challengeJson.textContent);
-      const response = JSON.parse(responseEditor.value);
-      const result = await postJson("/api/verify", { challenge, response });
-      resultJson.textContent = JSON.stringify(result, null, 2);
-      setStatus(
-        result.ok,
-        result.ok ? "Verification passed." : `Verification failed: ${result.reason}`,
-      );
+      try {
+        const challenge = JSON.parse(challengeJson.textContent);
+        const response = JSON.parse(responseEditor.value);
+        const result = await postJson("/api/verify", {
+          challenge_id: challenge.challenge_id,
+          response,
+        });
+        resultJson.textContent = JSON.stringify(result, null, 2);
+        setStatus(
+          result.ok,
+          result.ok ? "Verification passed." : `Verification failed: ${result.reason}`,
+        );
+      } catch (error) {
+        setStatus(false, error.message);
+      }
     });
+
+    challengeType.dispatchEvent(new Event("change"));
   </script>
 </body>
 </html>
@@ -444,6 +514,10 @@ def json_response(
     handler.send_header("Content-Length", str(len(body)))
     handler.end_headers()
     handler.wfile.write(body)
+
+
+def error_response(handler: BaseHTTPRequestHandler, message: str, status: int = 400) -> None:
+    json_response(handler, {"error": message}, status=status)
 
 
 class DemoHandler(BaseHTTPRequestHandler):
@@ -469,19 +543,30 @@ class DemoHandler(BaseHTTPRequestHandler):
         if parsed.path == "/api/challenge":
             spec = build_spec(payload)
             challenge = generate_challenge(spec)
+            ISSUED_CHALLENGES[challenge.challenge_id] = challenge
             json_response(self, challenge.to_dict())
             return
 
         if parsed.path == "/api/solve":
-            challenge = Challenge(**payload)
-            response = solve_challenge(challenge)
+            stored_challenge = load_challenge(payload)
+            if stored_challenge is None:
+                error_response(self, "unknown challenge_id", status=404)
+                return
+            try:
+                response = solve_challenge(stored_challenge)
+            except SolverUnavailableError as exc:
+                error_response(self, str(exc), status=400)
+                return
             json_response(self, response.to_dict())
             return
 
         if parsed.path == "/api/verify":
-            challenge = Challenge(**payload["challenge"])
+            stored_challenge = load_challenge(payload)
+            if stored_challenge is None:
+                error_response(self, "unknown challenge_id", status=404)
+                return
             response = AgentResponse(**payload["response"])
-            result = verify_response(challenge, response)
+            result = verify_response(stored_challenge, response)
             json_response(self, result.to_dict())
             return
 
@@ -492,21 +577,33 @@ class DemoHandler(BaseHTTPRequestHandler):
 
 
 def build_spec(payload: dict[str, Any]) -> ChallengeSpec:
-    challenge_type = str(payload.get("challenge_type", "proof_of_work"))
+    challenge_type = str(payload.get("challenge_type", "obfuscated_text_lock"))
     ttl_seconds = int(payload.get("ttl_seconds", 120))
-    difficulty = int(payload.get("difficulty", 16))
+    difficulty = int(payload.get("difficulty", 2))
     options: dict[str, Any] = {}
     if challenge_type == "semantic_math_lock":
         options = {
             "topic": str(payload.get("topic", "agents")),
             "word_count": int(payload.get("word_count", 8)),
         }
+    if challenge_type == "obfuscated_text_lock":
+        options = {"template": str(payload.get("template", "amber_sort"))}
     return ChallengeSpec(
         challenge_type=challenge_type,
         ttl_seconds=ttl_seconds,
         difficulty=difficulty,
         options=options,
     )
+
+
+def load_challenge(payload: dict[str, Any]) -> Challenge | None:
+    challenge_id = payload.get("challenge_id")
+    if isinstance(challenge_id, str):
+        return ISSUED_CHALLENGES.get(challenge_id)
+    challenge_data = payload.get("challenge")
+    if isinstance(challenge_data, dict):
+        return Challenge(**challenge_data)
+    return None
 
 
 def create_server(host: str = HOST, port: int = PORT) -> ThreadingHTTPServer:

@@ -5,7 +5,7 @@ from datetime import timedelta
 import pytest
 
 from agentproof import ChallengeSpec, generate_challenge, solve_challenge, verify_response
-from agentproof.exceptions import UnknownChallengeTypeError
+from agentproof.exceptions import SolverUnavailableError, UnknownChallengeTypeError
 from agentproof.models import AgentResponse, Challenge, parse_datetime, utc_now
 
 
@@ -40,6 +40,61 @@ def test_semantic_math_roundtrip() -> None:
     result = verify_response(challenge, response)
     assert result.ok
     assert result.details["word_count"] == 6
+
+
+def test_obfuscated_text_roundtrip_with_private_answer() -> None:
+    challenge = generate_challenge(
+        ChallengeSpec(
+            challenge_type="obfuscated_text_lock",
+            difficulty=2,
+            options={"template": "amber_sort"},
+        )
+    )
+    expected_answer = challenge.private_data["expected_answer"]
+    assert isinstance(expected_answer, str)
+    response = AgentResponse(
+        challenge_id=challenge.challenge_id,
+        challenge_type=challenge.challenge_type,
+        payload={"answer": expected_answer, "decoded_preview": "kept amber shards in slot order"},
+    )
+    result = verify_response(challenge, response)
+    assert result.ok
+    assert result.reason == "ok"
+    assert result.details["answer"] == expected_answer
+
+
+def test_obfuscated_text_solver_is_unavailable() -> None:
+    challenge = generate_challenge(ChallengeSpec(challenge_type="obfuscated_text_lock"))
+    with pytest.raises(SolverUnavailableError):
+        solve_challenge(challenge)
+
+
+def test_obfuscated_text_rejects_invalid_answer_format() -> None:
+    challenge = generate_challenge(
+        ChallengeSpec(challenge_type="obfuscated_text_lock", options={"template": "echo_reverse"})
+    )
+    response = AgentResponse(
+        challenge_id=challenge.challenge_id,
+        challenge_type=challenge.challenge_type,
+        payload={"answer": "not valid"},
+    )
+    result = verify_response(challenge, response)
+    assert not result.ok
+    assert result.reason == "invalid_answer_format"
+
+
+def test_obfuscated_text_rejects_wrong_answer() -> None:
+    challenge = generate_challenge(
+        ChallengeSpec(challenge_type="obfuscated_text_lock", options={"template": "vowel_count"})
+    )
+    response = AgentResponse(
+        challenge_id=challenge.challenge_id,
+        challenge_type=challenge.challenge_type,
+        payload={"answer": "WRONG-ANSWER"},
+    )
+    result = verify_response(challenge, response)
+    assert not result.ok
+    assert result.reason == "answer_mismatch"
 
 
 def test_semantic_math_rejects_wrong_word_count() -> None:

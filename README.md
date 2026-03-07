@@ -8,9 +8,9 @@
 
 ![agentproof overview](assets/agentproof-hero.svg)
 
-`agentproof` is a Python library for agent-oriented verification challenges.
-It lets a service issue a structured challenge, lets an agent solve it, and verifies the result
-deterministically on the server.
+`agentproof` is a Python library for LLM-capability CAPTCHA flows.
+It issues obfuscated public challenges, expects a structured answer back, and verifies the answer
+deterministically against the private server-side copy.
 
 Install:
 
@@ -24,147 +24,117 @@ Import:
 import agentproof
 ```
 
-## What problem it solves
+## What it is
 
-Traditional CAPTCHA asks "are you human?".
+Traditional CAPTCHA asks whether the client is human.
 
 `agentproof` asks a different question:
 
-"Can this client complete an agent-friendly, machine-checkable challenge?"
+> Can this client recover and execute an obfuscated instruction in an LLM-like way?
 
-That is useful when you want to:
+That makes it useful for:
 
-- gate agent-focused endpoints
-- prototype reverse-CAPTCHA style flows
-- add a structured verification step before allowing API access
-- experiment with challenge-response systems for LLM agents
+- LLM-first endpoints
+- reverse-CAPTCHA experiments
+- capability gates before access to an API
+- local testing of challenge-response flows for agents
 
 ## How it works
 
-1. Your server generates a challenge JSON payload.
-2. The agent reads it and produces a structured response.
-3. Your server verifies the response.
-4. Verification returns `ok: true` or a deterministic failure reason.
+1. Your server generates a challenge and keeps the private verification copy.
+2. You send the public challenge JSON to the client.
+3. The client returns structured JSON with `payload.answer`.
+4. Your server verifies the response and gets `ok: true` or an exact failure reason.
 
-## Smallest example
+## Quickest real example
 
 ```python
-from agentproof import ChallengeSpec, generate_challenge, solve_challenge, verify_response
+from agentproof import AgentResponse, ChallengeSpec, generate_challenge, verify_response
 
 challenge = generate_challenge(
-    ChallengeSpec(challenge_type="proof_of_work", difficulty=8, ttl_seconds=60)
+    ChallengeSpec(
+        challenge_type="obfuscated_text_lock",
+        difficulty=2,
+        options={"template": "amber_sort"},
+    )
 )
-response = solve_challenge(challenge)
-result = verify_response(challenge, response)
 
+public_challenge = challenge.to_dict()
+
+# Send public_challenge to an LLM-capable client.
+# The client responds with structured JSON.
+response = AgentResponse(
+    challenge_id=challenge.challenge_id,
+    challenge_type=challenge.challenge_type,
+    payload={"answer": "EMBER-HARBOR-SIGNAL"},
+)
+
+result = verify_response(challenge, response)
 assert result.ok
 ```
 
-## What a real challenge looks like
-
-Example `proof_of_work` challenge:
+## What the public challenge looks like
 
 ```json
 {
-  "challenge_id": "6f2c8e4a91d3b5c1",
-  "challenge_type": "proof_of_work",
-  "prompt": "Find a nonce such that sha256_hex(payload + ':' + nonce) starts with 8 leading zero bits.",
-  "issued_at": "2026-03-07T01:10:00+00:00",
-  "expires_at": "2026-03-07T01:11:00+00:00",
-  "version": "1",
+  "challenge_id": "bb28567e201b35aa",
+  "challenge_type": "obfuscated_text_lock",
+  "prompt": "gl1tch//llm-cap-v1::d2\nfrag@f8 // D3c0d3 the driFted Br13f ANd 4N5w3r tHrOUgH Payload.answer 0NLY\nfrag@d8 %% d3CK: slOt5 v10l37 cIndEr\nfrag@f6 %% d3ck: sloT2 4Mb3R h4Rb0r\nfrag@c9 || task: 0rD3R thE kept 5h4Rd WOrdS By 5l07 numBer fr0m loW to h1gh\nfrag@b3 %% dEcK: slOt3 C0b4L7 sabLe\nfrag@d3 %% AnswEr ruLe: R37urn ThE 5H4rd W0rd5 in UpPercaSe aScii J01N3D WIth hYpheNs\nfrag@e2 || d3Ck: SLot4 4mb3R 51gn4L\nfrag@e5 ^^ tasK: keEp onLy ShArds cArrying the 4MB3r TAg\nfrag@e4 :: d3CK: slot1 4mB3r 3Mb3R\nreply via payload.answer only // structured-json",
+  "issued_at": "2026-03-07T02:58:20.639623+00:00",
+  "expires_at": "2026-03-07T03:00:20.639623+00:00",
   "data": {
-    "algorithm": "sha256",
-    "difficulty": 8,
-    "salt": "a14d22b8f91c77e2",
-    "payload": "6f2c8e4a91d3b5c1:a14d22b8f91c77e2"
-  }
+    "difficulty": 2,
+    "profile": "llm_capability_v1",
+    "response_contract": {
+      "payload.answer": "UPPERCASE ASCII words joined with hyphens",
+      "payload.decoded_preview": "optional free-form notes"
+    }
+  },
+  "version": "1"
 }
 ```
 
-Example agent response:
+The matching client response looks like:
 
 ```json
 {
-  "challenge_id": "6f2c8e4a91d3b5c1",
-  "challenge_type": "proof_of_work",
+  "challenge_id": "bb28567e201b35aa",
+  "challenge_type": "obfuscated_text_lock",
   "payload": {
-    "nonce": "223",
-    "hash": "00bf9b61a372cbd81bef570069b655fd02ef299cc29e9e59d5739e86f5fb6974"
+    "answer": "EMBER-HARBOR-SIGNAL",
+    "decoded_preview": "kept amber shards ordered by slot"
   }
 }
 ```
 
-Example verification result:
+And verification returns:
 
 ```json
 {
   "ok": true,
   "reason": "ok",
   "details": {
-    "hash": "00bf9b61a372cbd81bef570069b655fd02ef299cc29e9e59d5739e86f5fb6974",
-    "nonce": "223"
+    "answer": "EMBER-HARBOR-SIGNAL",
+    "template_id": "amber_sort",
+    "difficulty": 2
   }
 }
 ```
 
-## Why this fits agents
-
-These challenges are good for agents because they are:
-
-- machine-readable
-- automatable
-- exact
-- easy to verify on the server
-
-Agents are typically better than humans at:
-
-- reading structured JSON
-- following exact constraints
-- iterating until a condition is satisfied
-- returning properly formatted machine output
-
 ## Built-in challenge types
 
-| Challenge type | What the agent does | How it is verified |
+| Challenge type | Role | Built-in solver |
 | --- | --- | --- |
-| `proof_of_work` | Search for a nonce | Recompute hash and check difficulty |
-| `semantic_math_lock` | Produce constrained text | Check required words, exact word count, and initial-letter sum |
+| `obfuscated_text_lock` | Primary LLM-capability challenge | No |
+| `proof_of_work` | Deterministic compute baseline | Yes |
+| `semantic_math_lock` | Readable exact-constraint baseline | Yes |
 
-## Semantic example
-
-```python
-from agentproof import ChallengeSpec, generate_challenge, solve_challenge, verify_response
-
-challenge = generate_challenge(
-    ChallengeSpec(
-        challenge_type="semantic_math_lock",
-        ttl_seconds=90,
-        options={"topic": "security", "word_count": 7},
-    )
-)
-response = solve_challenge(challenge)
-result = verify_response(challenge, response)
-
-print(response.payload["text"])
-print(result.to_dict())
-```
-
-Typical response text:
-
-```text
-security demands careful metrics metrics metrics metrics
-```
-
-## API shape
-
-```python
-from agentproof import ChallengeSpec, generate_challenge, solve_challenge, verify_response
-from agentproof import Challenge, AgentResponse, VerificationResult
-```
+`obfuscated_text_lock` is the main product path. It is meant to be solved by an external
+LLM-capable client, not by a bundled reference solver.
 
 ## CLI
 
-Generate, solve, and verify from the command line:
+Baseline challenge roundtrip:
 
 ```bash
 agentproof generate proof_of_work --difficulty 16 --output challenge.json
@@ -172,32 +142,50 @@ agentproof solve challenge.json --output response.json
 agentproof verify challenge.json response.json
 ```
 
+Obfuscated challenge flow:
+
+```bash
+agentproof generate obfuscated_text_lock \
+  --difficulty 2 \
+  --template amber_sort \
+  --output challenge.internal.json \
+  --public-output challenge.public.json
+```
+
+Use `challenge.public.json` for the client and keep `challenge.internal.json` server-side for
+verification.
+
 ## Demo
 
-A runnable local demo lives in [`demo/`](https://github.com/bnovik0v/agentproof/tree/main/demo).
-
-Run it with:
+Run the local demo:
 
 ```bash
 uv run python demo/app.py
 ```
 
-Then open:
+Then open `http://127.0.0.1:8765`.
 
-```text
-http://127.0.0.1:8765
-```
+The demo centers the obfuscated challenge flow and lets you paste a real LLM response into the
+browser before verifying it.
+
+## What this proves
+
+`agentproof` is best used to prove:
+
+- the client can recover intent from obfuscated text
+- the client can return exact structured output
+- the response can be checked deterministically on your server
 
 ## What this does not prove
 
 `agentproof` does not prove:
 
-- model provenance
-- provider identity
+- model identity
+- provider provenance
 - hardware-backed execution
-- protection against determined custom automation
+- protection against every scripted solver
 
-It is a challenge-response library, not an identity system.
+It is an LLM-capability CAPTCHA library, not an identity system.
 
 ## Development
 
@@ -218,5 +206,3 @@ uv run mkdocs build --strict
 - Contributing: [CONTRIBUTING.md](CONTRIBUTING.md)
 
 ## License
-
-MIT

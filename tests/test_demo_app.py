@@ -45,16 +45,62 @@ def test_demo_roundtrip() -> None:
             f"{base_url}/api/challenge",
             {"challenge_type": "proof_of_work", "difficulty": 8, "ttl_seconds": 120},
         )
-        response = request_json(f"{base_url}/api/solve", challenge)
+        response = request_json(
+            f"{base_url}/api/solve",
+            {"challenge_id": cast(str, challenge["challenge_id"])},
+        )
         result = request_json(
             f"{base_url}/api/verify",
-            {"challenge": challenge, "response": response},
+            {"challenge_id": challenge["challenge_id"], "response": response},
         )
 
         assert challenge["challenge_type"] == "proof_of_work"
         assert "prompt" in challenge
         response_payload = cast(dict[str, Any], response["payload"])
         assert "nonce" in response_payload
+        assert result["ok"] is True
+    finally:
+        server.shutdown()
+        server.server_close()
+        thread.join(timeout=5)
+
+
+def test_demo_obfuscated_manual_verify() -> None:
+    module = load_demo_app_module()
+    server, thread = module.serve_in_background(port=0)
+    host, port = cast(tuple[str, int], server.server_address)
+    base_url = f"http://{host}:{port}"
+    try:
+        for _ in range(10):
+            if thread.is_alive():
+                break
+            time.sleep(0.05)
+
+        challenge = request_json(
+            f"{base_url}/api/challenge",
+            {
+                "challenge_type": "obfuscated_text_lock",
+                "difficulty": 2,
+                "template": "amber_sort",
+                "ttl_seconds": 120,
+            },
+        )
+        internal = module.ISSUED_CHALLENGES[cast(str, challenge["challenge_id"])]
+        response = {
+            "challenge_id": challenge["challenge_id"],
+            "challenge_type": challenge["challenge_type"],
+            "payload": {
+                "answer": internal.private_data["expected_answer"],
+                "decoded_preview": "manually recovered amber sort instructions",
+            },
+        }
+        result = request_json(
+            f"{base_url}/api/verify",
+            {"challenge_id": challenge["challenge_id"], "response": response},
+        )
+
+        assert challenge["challenge_type"] == "obfuscated_text_lock"
+        assert "private_data" not in challenge
         assert result["ok"] is True
     finally:
         server.shutdown()

@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from dataclasses import asdict, dataclass, field
 from datetime import datetime, timedelta, timezone
-from typing import TypeAlias
+from typing import TypeAlias, cast
 
 JSONValue: TypeAlias = None | bool | int | float | str | list["JSONValue"] | dict[str, "JSONValue"]
 
@@ -44,6 +44,7 @@ class Challenge:
     expires_at: str
     data: dict[str, JSONValue]
     version: str = "1"
+    private_data: dict[str, JSONValue] = field(default_factory=dict, repr=False)
 
     @classmethod
     def create(
@@ -53,6 +54,7 @@ class Challenge:
         prompt: str,
         ttl_seconds: int,
         data: dict[str, JSONValue],
+        private_data: dict[str, JSONValue] | None = None,
     ) -> Challenge:
         issued_at = utc_now()
         expires_at = issued_at + timedelta(seconds=ttl_seconds)
@@ -63,10 +65,26 @@ class Challenge:
             issued_at=issued_at.isoformat(),
             expires_at=expires_at.isoformat(),
             data=data,
+            private_data=private_data or {},
         )
 
-    def to_dict(self) -> dict[str, JSONValue]:
-        return asdict(self)
+    def to_dict(self, *, include_private: bool = False) -> dict[str, JSONValue]:
+        payload: dict[str, JSONValue] = {
+            "challenge_id": self.challenge_id,
+            "challenge_type": self.challenge_type,
+            "prompt": self.prompt,
+            "issued_at": self.issued_at,
+            "expires_at": self.expires_at,
+            "data": self.data,
+            "version": self.version,
+        }
+        if include_private:
+            payload["private_data"] = cast(JSONValue, self.private_data)
+        return payload
+
+    def to_internal_dict(self) -> dict[str, JSONValue]:
+        """Return a JSON-safe representation including server-side verification data."""
+        return self.to_dict(include_private=True)
 
 
 @dataclass(frozen=True)

@@ -2,10 +2,10 @@
 
 ## What `agentproof` helps with
 
-- adding structured challenge-response verification to an API
-- making low-effort manual interaction less convenient
-- requiring machine-readable responses
-- enforcing expirations and replay resistance when your application stores challenge IDs
+- adding a structured LLM-capability challenge before access to an API
+- requiring clients to recover intent from obfuscated text
+- enforcing machine-readable responses
+- keeping private verification data on the server while exposing only the public challenge
 
 ## What it does not prove
 
@@ -20,7 +20,8 @@
 
 `agentproof` answers:
 
-> Can this client complete a deterministic, agent-oriented challenge?
+> Can this client recover and execute an obfuscated instruction and return the exact expected
+> result?
 
 It does **not** answer:
 
@@ -32,7 +33,7 @@ Use `agentproof` as one signal in a broader system. In production, combine it wi
 
 - rate limiting
 - application authentication
-- server-side challenge storage
+- server-side challenge storage or signed challenge state
 - expiration checks
 - replay protection
 - logging and abuse monitoring
@@ -45,3 +46,10 @@ The library prefers exact constraints over fuzzy scoring so that:
 - tests stay deterministic
 - challenge behavior is stable across environments
 
+## Why the public and private payload split matters
+
+For the obfuscated family:
+
+- the public challenge should travel to the client
+- the private expected answer should not
+- verification should happen against the original in-memory challenge or its internal JSON form

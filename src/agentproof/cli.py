@@ -4,10 +4,12 @@ from __future__ import annotations
 
 import argparse
 import json
+import sys
 from pathlib import Path
 from typing import Any, cast
 
 from agentproof.api import generate_challenge, solve_challenge, verify_response
+from agentproof.exceptions import SolverUnavailableError
 from agentproof.models import AgentResponse, Challenge, ChallengeSpec
 
 
@@ -42,12 +44,27 @@ def build_parser() -> argparse.ArgumentParser:
     subparsers = parser.add_subparsers(dest="command", required=True)
 
     generate_parser = subparsers.add_parser("generate", help="Generate a challenge")
-    generate_parser.add_argument("challenge_type", choices=["proof_of_work", "semantic_math_lock"])
+    generate_parser.add_argument(
+        "challenge_type",
+        choices=["obfuscated_text_lock", "proof_of_work", "semantic_math_lock"],
+    )
     generate_parser.add_argument("--difficulty", type=int, default=0)
     generate_parser.add_argument("--ttl-seconds", type=int, default=120)
     generate_parser.add_argument("--topic", default="agents")
     generate_parser.add_argument("--word-count", type=int, default=8)
+    generate_parser.add_argument(
+        "--template",
+        choices=["amber_sort", "echo_reverse", "vowel_count"],
+        default="amber_sort",
+    )
     generate_parser.add_argument("--output")
+    generate_parser.add_argument(
+        "--public-output",
+        help=(
+            "Optional path for a sanitized public challenge JSON without "
+            "private verification data"
+        ),
+    )
 
     solve_parser = subparsers.add_parser("solve", help="Solve a challenge from JSON")
     solve_parser.add_argument("challenge_file")
@@ -69,6 +86,8 @@ def main(argv: list[str] | None = None) -> int:
         options: dict[str, Any] = {}
         if args.challenge_type == "semantic_math_lock":
             options = {"topic": args.topic, "word_count": args.word_count}
+        if args.challenge_type == "obfuscated_text_lock":
+            options = {"template": args.template}
         spec = ChallengeSpec(
             challenge_type=args.challenge_type,
             difficulty=args.difficulty,
@@ -76,12 +95,18 @@ def main(argv: list[str] | None = None) -> int:
             options=options,
         )
         challenge = generate_challenge(spec)
-        _write_json(challenge.to_dict(), args.output)
+        _write_json(challenge.to_internal_dict(), args.output)
+        if args.public_output:
+            _write_json(challenge.to_dict(), args.public_output)
         return 0
 
     if args.command == "solve":
         challenge = _challenge_from_dict(_read_json(args.challenge_file))
-        response = solve_challenge(challenge)
+        try:
+            response = solve_challenge(challenge)
+        except SolverUnavailableError as exc:
+            print(str(exc), file=sys.stderr)
+            return 2
         _write_json(response.to_dict(), args.output)
         return 0
 

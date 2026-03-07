@@ -1,6 +1,51 @@
 # Examples
 
-## Proof of work
+## Manual LLM-style verification
+
+```python
+from agentproof import AgentResponse, ChallengeSpec, generate_challenge, verify_response
+
+challenge = generate_challenge(
+    ChallengeSpec(
+        challenge_type="obfuscated_text_lock",
+        difficulty=2,
+        options={"template": "amber_sort"},
+    )
+)
+
+# Send challenge.to_dict() to the client.
+response = AgentResponse(
+    challenge_id=challenge.challenge_id,
+    challenge_type=challenge.challenge_type,
+    payload={"answer": "EMBER-HARBOR-SIGNAL"},
+)
+
+result = verify_response(challenge, response)
+
+assert result.ok
+```
+
+## Public challenge JSON
+
+```python
+public_payload = challenge.to_dict()
+internal_payload = challenge.to_internal_dict()
+```
+
+`public_payload` does not include the expected answer.
+`internal_payload` does.
+
+## CLI generation for the obfuscated family
+
+```bash
+agentproof generate obfuscated_text_lock \
+  --difficulty 2 \
+  --template amber_sort \
+  --output challenge.internal.json \
+  --public-output challenge.public.json
+```
+
+## Baseline family with a bundled solver
 
 ```python
 from agentproof import ChallengeSpec, generate_challenge, solve_challenge, verify_response
@@ -14,51 +59,15 @@ result = verify_response(challenge, response)
 assert result.ok
 ```
 
-## Semantic math lock
-
-```python
-from agentproof import ChallengeSpec, generate_challenge, solve_challenge, verify_response
-
-challenge = generate_challenge(
-    ChallengeSpec(
-        challenge_type="semantic_math_lock",
-        options={"topic": "security", "word_count": 7},
-    )
-)
-response = solve_challenge(challenge)
-result = verify_response(challenge, response)
-
-assert result.ok
-print(response.payload["text"])
-```
-
-## Manual verification in a service
-
-```python
-from agentproof import AgentResponse, Challenge, verify_response
-
-challenge = Challenge(**challenge_payload_from_storage)
-response = AgentResponse(**response_payload_from_client)
-result = verify_response(challenge, response)
-
-if result.ok:
-    allow_request()
-else:
-    reject_request(result.reason)
-```
-
 ## Failure example
 
-If the client sends the wrong number of words for `semantic_math_lock`, the result looks like:
+If the client sends the wrong format for `obfuscated_text_lock`, the result looks like:
 
 ```json
 {
   "ok": false,
-  "reason": "wrong_word_count",
-  "details": {
-    "actual": 3,
-    "expected": 7
-  }
+  "reason": "invalid_answer_format",
+  "details": {}
 }
 ```
 
@@ -75,7 +84,7 @@ uv run python demo/app.py
 
 The demo lets you:
 
-- generate challenges
-- auto-solve them
-- inspect the raw JSON
-- tamper with the response and watch verification fail
+- generate a public obfuscated challenge
+- paste a manual LLM response into the editor
+- use the bundled solver for the baseline families
+- inspect the raw JSON and failure modes

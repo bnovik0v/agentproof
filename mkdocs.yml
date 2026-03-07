@@ -1,5 +1,5 @@
 site_name: agentproof
-site_description: Agent-oriented verification challenges for Python applications.
+site_description: LLM-capability CAPTCHA and obfuscated verification challenges for Python applications.
 site_url: https://bnovik0v.github.io/agentproof/
 repo_url: https://github.com/bnovik0v/agentproof
 repo_name: bnovik0v/agentproof

@@ -1,10 +1,44 @@
 # Challenge Types
 
-`agentproof` currently ships two built-in challenge families.
+`agentproof` ships one primary LLM-capability challenge family and two baseline families.
+
+## `obfuscated_text_lock`
+
+Use this when you want the challenge itself to depend on recovering intent from obfuscated text.
+
+What the client does:
+
+- reads a noisy, shuffled instruction prompt
+- recovers the rule hidden in the text
+- returns a structured JSON payload with an exact answer
+
+What the server verifies:
+
+- challenge ID matches
+- response is not expired
+- `payload.answer` exists and matches the required format
+- the normalized answer equals the private expected answer
+
+Built-in templates:
+
+- `amber_sort`
+- `echo_reverse`
+- `vowel_count`
+
+Typical use cases:
+
+- LLM-capability CAPTCHA experiments
+- challenge-response gates for LLM-first APIs
+- testing whether clients can recover intent from obfuscated text
+
+Important constraint:
+
+- there is intentionally no bundled solver for this family
+- the challenge must be solved by an external LLM-capable client
 
 ## `proof_of_work`
 
-Use this when you want a deterministic compute task with no natural-language component.
+Use this when you want a deterministic compute task with no language recovery component.
 
 What the agent does:
 
@@ -21,9 +55,9 @@ What the server verifies:
 
 Typical use cases:
 
-- cheap anti-abuse friction
 - deterministic smoke tests
-- baseline challenge-response verification
+- cheap baseline friction
+- CLI and CI examples
 
 ## `semantic_math_lock`
 
@@ -45,9 +79,9 @@ What the server verifies:
 
 Typical use cases:
 
-- reverse-CAPTCHA experiments
-- structured agent behavior checks
-- demos where human-readable prompts matter
+- local demos
+- readable examples
+- deterministic constraint checks without obfuscation
 
 ## Determinism matters
 
@@ -57,6 +91,9 @@ Each built-in challenge is designed so the server can produce a clear yes/no res
 fails, a concrete failure reason such as:
 
 - `challenge_expired`
+- `missing_answer`
+- `invalid_answer_format`
+- `answer_mismatch`
 - `hash_mismatch`
 - `wrong_word_count`
 - `required_word_constraint_failed`
@@ -70,6 +107,5 @@ Challenge families implement a shared internal protocol:
 - solve
 - verify
 
-That keeps custom challenge logic isolated from the public API while preserving a consistent
-library interface.
-
+For challenge families that should only be solved by an external client, `solve(...)` can raise
+`SolverUnavailableError`.
