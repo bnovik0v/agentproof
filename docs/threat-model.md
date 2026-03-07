@@ -1,19 +1,47 @@
 # Threat Model
 
-## What this helps with
+## What `agentproof` helps with
 
-- adding friction for manual or low-effort abuse
-- requiring structured machine responses
-- replay protection when applications enforce challenge IDs and expiry
+- adding structured challenge-response verification to an API
+- making low-effort manual interaction less convenient
+- requiring machine-readable responses
+- enforcing expirations and replay resistance when your application stores challenge IDs
 
-## What this does not prove
+## What it does not prove
 
-- model provenance
-- provider identity
-- hardware-backed execution
-- resistance to determined attackers with custom automation
+`agentproof` does not prove:
+
+- which model produced the response
+- whether the caller is using a specific provider
+- whether the caller used hardware-backed execution
+- whether the caller is malicious but well-automated
+
+## Correct way to think about it
+
+`agentproof` answers:
+
+> Can this client complete a deterministic, agent-oriented challenge?
+
+It does **not** answer:
+
+> Is this definitely a trusted AI agent?
 
 ## Deployment advice
 
-Use `agentproof` as one signal in a broader abuse-control system.
+Use `agentproof` as one signal in a broader system. In production, combine it with:
+
+- rate limiting
+- application authentication
+- server-side challenge storage
+- expiration checks
+- replay protection
+- logging and abuse monitoring
+
+## Why the verification is strict
+
+The library prefers exact constraints over fuzzy scoring so that:
+
+- the server can explain failures clearly
+- tests stay deterministic
+- challenge behavior is stable across environments
 

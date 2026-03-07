@@ -174,7 +174,7 @@ agentproof verify challenge.json response.json
 
 ## Demo
 
-A runnable local demo lives in [`demo/`](/home/borislav/VSCode/agentproof/demo).
+A runnable local demo lives in [`demo/`](https://github.com/bnovik0v/agentproof/tree/main/demo).
 
 Run it with:
 
@@ -214,7 +214,7 @@ uv run mkdocs build --strict
 
 - PyPI: https://pypi.org/project/agentproof-ai/
 - Docs: https://bnovik0v.github.io/agentproof/
-- Demo: [demo/README.md](/home/borislav/VSCode/agentproof/demo/README.md)
+- Demo: [demo/README.md](https://github.com/bnovik0v/agentproof/blob/main/demo/README.md)
 - Contributing: [CONTRIBUTING.md](CONTRIBUTING.md)
 
 ## License
