@@ -8,101 +8,129 @@
 
 ![agentproof overview](assets/agentproof-hero.svg)
 
-`agentproof` is an open-source Python library for agent-oriented verification challenges.
-It gives Python services a clean way to issue deterministic, machine-checkable challenges that
-are easier for programmatic agents to solve than for humans to complete manually.
+`agentproof` is a Python library for agent-oriented verification challenges.
+It lets a service issue a structured challenge, lets an agent solve it, and verifies the result
+deterministically on the server.
 
-The library does not claim cryptographic proof of model provenance. It focuses on a narrower,
-defensible goal: structured challenge-response verification.
-
-## Why this exists
-
-Traditional CAPTCHA systems try to separate humans from bots. `agentproof` flips that framing:
-it helps you design challenge-response checks that favor capable software agents and remain
-verifiable on the server.
-
-This is useful when you want to:
-
-- gate access to agent-focused endpoints
-- experiment with reverse-CAPTCHA style flows
-- add a deterministic challenge layer to evaluation or abuse-control pipelines
-- prototype agent-friendly verification without inventing your own format from scratch
-
-## Design goals
-
-- Keep verification deterministic and easy to reason about
-- Make payloads JSON-friendly for APIs and job systems
-- Keep the public API narrow and typed
-- Document the threat model instead of overselling the guarantees
-- Stay lightweight enough for experiments and production prototypes
-
-## Features
-
-- Typed Python API with a small public surface
-- Deterministic challenge generation, solving, and verification
-- Pluggable challenge families behind a shared protocol
-- JSON-serializable payloads for APIs, queues, and services
-- Reference CLI for demos and integration tests
-- Built-in documentation, examples, CI, and release automation
-
-## Challenge families
-
-| Challenge type | Purpose | Verification style |
-| --- | --- | --- |
-| `proof_of_work` | Add deterministic compute cost | Leading-zero SHA256 check |
-| `semantic_math_lock` | Favor structured text generation | Exact word constraints and ASCII initial sum |
-
-## Installation
+Install:
 
 ```bash
 pip install agentproof-ai
 ```
 
-The published distribution name is `agentproof-ai`, while the import remains `agentproof`:
+Import:
 
 ```python
 import agentproof
 ```
 
-For local development:
+## What problem it solves
 
-```bash
-uv sync --extra dev --extra docs --extra demo
-```
+Traditional CAPTCHA asks "are you human?".
 
-## Public API
+`agentproof` asks a different question:
+
+"Can this client complete an agent-friendly, machine-checkable challenge?"
+
+That is useful when you want to:
+
+- gate agent-focused endpoints
+- prototype reverse-CAPTCHA style flows
+- add a structured verification step before allowing API access
+- experiment with challenge-response systems for LLM agents
+
+## How it works
+
+1. Your server generates a challenge JSON payload.
+2. The agent reads it and produces a structured response.
+3. Your server verifies the response.
+4. Verification returns `ok: true` or a deterministic failure reason.
+
+## Smallest example
 
 ```python
 from agentproof import ChallengeSpec, generate_challenge, solve_challenge, verify_response
-```
 
-## Quickstart
-
-```python
-from agentproof import ChallengeSpec, generate_challenge, solve_challenge, verify_response
-
-spec = ChallengeSpec(challenge_type="proof_of_work", difficulty=18, ttl_seconds=120)
-challenge = generate_challenge(spec)
+challenge = generate_challenge(
+    ChallengeSpec(challenge_type="proof_of_work", difficulty=8, ttl_seconds=60)
+)
 response = solve_challenge(challenge)
 result = verify_response(challenge, response)
 
 assert result.ok
 ```
 
-### Example output
+## What a real challenge looks like
+
+Example `proof_of_work` challenge:
+
+```json
+{
+  "challenge_id": "6f2c8e4a91d3b5c1",
+  "challenge_type": "proof_of_work",
+  "prompt": "Find a nonce such that sha256_hex(payload + ':' + nonce) starts with 8 leading zero bits.",
+  "issued_at": "2026-03-07T01:10:00+00:00",
+  "expires_at": "2026-03-07T01:11:00+00:00",
+  "version": "1",
+  "data": {
+    "algorithm": "sha256",
+    "difficulty": 8,
+    "salt": "a14d22b8f91c77e2",
+    "payload": "6f2c8e4a91d3b5c1:a14d22b8f91c77e2"
+  }
+}
+```
+
+Example agent response:
+
+```json
+{
+  "challenge_id": "6f2c8e4a91d3b5c1",
+  "challenge_type": "proof_of_work",
+  "payload": {
+    "nonce": "223",
+    "hash": "00bf9b61a372cbd81bef570069b655fd02ef299cc29e9e59d5739e86f5fb6974"
+  }
+}
+```
+
+Example verification result:
 
 ```json
 {
   "ok": true,
   "reason": "ok",
   "details": {
-    "hash": "0007f5...",
-    "nonce": "18423"
+    "hash": "00bf9b61a372cbd81bef570069b655fd02ef299cc29e9e59d5739e86f5fb6974",
+    "nonce": "223"
   }
 }
 ```
 
-### Semantic challenge example
+## Why this fits agents
+
+These challenges are good for agents because they are:
+
+- machine-readable
+- automatable
+- exact
+- easy to verify on the server
+
+Agents are typically better than humans at:
+
+- reading structured JSON
+- following exact constraints
+- iterating until a condition is satisfied
+- returning properly formatted machine output
+
+## Built-in challenge types
+
+| Challenge type | What the agent does | How it is verified |
+| --- | --- | --- |
+| `proof_of_work` | Search for a nonce | Recompute hash and check difficulty |
+| `semantic_math_lock` | Produce constrained text | Check required words, exact word count, and initial-letter sum |
+
+## Semantic example
 
 ```python
 from agentproof import ChallengeSpec, generate_challenge, solve_challenge, verify_response
@@ -117,31 +145,26 @@ challenge = generate_challenge(
 response = solve_challenge(challenge)
 result = verify_response(challenge, response)
 
-assert result.ok
 print(response.payload["text"])
+print(result.to_dict())
 ```
 
-### Service integration example
+Typical response text:
+
+```text
+security demands careful metrics metrics metrics metrics
+```
+
+## API shape
 
 ```python
-from agentproof import AgentResponse, Challenge, ChallengeSpec, generate_challenge, verify_response
-
-challenge = generate_challenge(
-    ChallengeSpec(challenge_type="semantic_math_lock", options={"topic": "security", "word_count": 7})
-)
-
-# ... send challenge.to_dict() to a client ...
-
-response = AgentResponse(
-    challenge_id=challenge.challenge_id,
-    challenge_type=challenge.challenge_type,
-    payload={"text": "security demands careful metrics metrics metrics metrics"},
-)
-
-result = verify_response(challenge, response)
+from agentproof import ChallengeSpec, generate_challenge, solve_challenge, verify_response
+from agentproof import Challenge, AgentResponse, VerificationResult
 ```
 
-### CLI roundtrip
+## CLI
+
+Generate, solve, and verify from the command line:
 
 ```bash
 agentproof generate proof_of_work --difficulty 16 --output challenge.json
@@ -149,73 +172,37 @@ agentproof solve challenge.json --output response.json
 agentproof verify challenge.json response.json
 ```
 
-## Verification model
+## Demo
 
-```mermaid
-sequenceDiagram
-    participant S as Service
-    participant A as Agent client
-    S->>A: Issue challenge JSON
-    A->>A: Solve challenge
-    A->>S: Submit structured response
-    S->>S: Verify deterministically
-    S-->>A: Accept or reject
-```
+A runnable local demo lives in [`demo/`](/home/borislav/VSCode/agentproof/demo).
 
-## CLI
-
-Generate a challenge:
+Run it with:
 
 ```bash
-agentproof generate proof_of_work --difficulty 18
+uv run python demo/app.py
 ```
 
-Solve a challenge from a file:
+Then open:
 
-```bash
-agentproof solve challenge.json
+```text
+http://127.0.0.1:8765
 ```
 
-Verify a response:
+## What this does not prove
 
-```bash
-agentproof verify challenge.json response.json
-```
-
-## Demo project
-
-A runnable local demo lives in [`demo/`](/home/borislav/VSCode/agentproof/demo). It is intended
-for opening in VSCode and trying the package end-to-end with a small UI and example service flow.
-
-## Threat model
-
-`agentproof` helps with agent-oriented challenge-response flows. It does **not** prove:
+`agentproof` does not prove:
 
 - model provenance
 - provider identity
 - hardware-backed execution
-- immunity against determined scripted attackers
+- protection against determined custom automation
 
-Use it as one verification signal, not as a complete trust system.
-
-## Security and scope
-
-`agentproof` is not an identity or attestation system. It does not prove that a request came
-from a specific model provider or hardware-backed agent. The current scope is challenge-response
-verification with explicit tradeoffs documented in the threat model.
-
-## Modern repo defaults
-
-- GitHub Actions CI across Python 3.10 to 3.13
-- Typed package with `py.typed`
-- Coverage gate at 90%+
-- MkDocs documentation site
-- Dependabot config and issue templates
-- PyPI release workflow prepared for trusted publishing
+It is a challenge-response library, not an identity system.
 
 ## Development
 
 ```bash
+uv sync --extra dev --extra docs --extra demo
 uv run ruff check .
 uv run mypy .
 uv run pytest
@@ -223,16 +210,12 @@ uv run python -m build
 uv run mkdocs build --strict
 ```
 
-## Release model
+## Links
 
-- `main` runs lint, type checks, tests, package builds, and docs builds in GitHub Actions
-- version tags trigger package publishing through the release workflow
-- PyPI publishing is configured for trusted publishing, so the repository should be linked to the
-  target PyPI project before pushing a release tag
-
-## Contributing
-
-See [CONTRIBUTING.md](CONTRIBUTING.md) for local setup and quality checks.
+- PyPI: https://pypi.org/project/agentproof-ai/
+- Docs: https://bnovik0v.github.io/agentproof/
+- Demo: [demo/README.md](/home/borislav/VSCode/agentproof/demo/README.md)
+- Contributing: [CONTRIBUTING.md](CONTRIBUTING.md)
 
 ## License
 
