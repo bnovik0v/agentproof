@@ -64,8 +64,34 @@ def test_obfuscated_text_roundtrip_with_private_answer() -> None:
     assert result.details["answer"] == expected_answer
 
 
+def test_multi_pass_roundtrip_with_private_answer() -> None:
+    challenge = generate_challenge(
+        ChallengeSpec(
+            challenge_type="multi_pass_lock",
+            difficulty=2,
+            options={"template": "warm_reverse_length"},
+        )
+    )
+    expected_answer = challenge.private_data["expected_answer"]
+    assert isinstance(expected_answer, str)
+    response = AgentResponse(
+        challenge_id=challenge.challenge_id,
+        challenge_type=challenge.challenge_type,
+        payload={"answer": expected_answer},
+    )
+    result = verify_response(challenge, response)
+    assert result.ok
+    assert result.details["answer"] == expected_answer
+
+
 def test_obfuscated_text_solver_is_unavailable() -> None:
     challenge = generate_challenge(ChallengeSpec(challenge_type="obfuscated_text_lock"))
+    with pytest.raises(SolverUnavailableError):
+        solve_challenge(challenge)
+
+
+def test_multi_pass_solver_is_unavailable() -> None:
+    challenge = generate_challenge(ChallengeSpec(challenge_type="multi_pass_lock"))
     with pytest.raises(SolverUnavailableError):
         solve_challenge(challenge)
 
@@ -96,6 +122,50 @@ def test_obfuscated_text_rejects_wrong_answer() -> None:
     result = verify_response(challenge, response)
     assert not result.ok
     assert result.reason == "answer_mismatch"
+
+
+def test_multi_pass_rejects_wrong_answer() -> None:
+    challenge = generate_challenge(
+        ChallengeSpec(challenge_type="multi_pass_lock", options={"template": "echo_clip_desc"})
+    )
+    response = AgentResponse(
+        challenge_id=challenge.challenge_id,
+        challenge_type=challenge.challenge_type,
+        payload={"answer": "WRONG-ANSWER"},
+    )
+    result = verify_response(challenge, response)
+    assert not result.ok
+    assert result.reason == "answer_mismatch"
+
+
+def test_multi_pass_vowel_trim_desc_roundtrip() -> None:
+    challenge = generate_challenge(
+        ChallengeSpec(challenge_type="multi_pass_lock", options={"template": "vowel_trim_desc"})
+    )
+    expected_answer = challenge.private_data["expected_answer"]
+    assert isinstance(expected_answer, str)
+    response = AgentResponse(
+        challenge_id=challenge.challenge_id,
+        challenge_type=challenge.challenge_type,
+        payload={"answer": expected_answer},
+    )
+    result = verify_response(challenge, response)
+    assert result.ok
+
+
+def test_multi_pass_echo_clip_desc_roundtrip() -> None:
+    challenge = generate_challenge(
+        ChallengeSpec(challenge_type="multi_pass_lock", options={"template": "echo_clip_desc"})
+    )
+    expected_answer = challenge.private_data["expected_answer"]
+    assert isinstance(expected_answer, str)
+    response = AgentResponse(
+        challenge_id=challenge.challenge_id,
+        challenge_type=challenge.challenge_type,
+        payload={"answer": expected_answer},
+    )
+    result = verify_response(challenge, response)
+    assert result.ok
 
 
 def test_obfuscated_text_public_roundtrip_fails_gracefully() -> None:

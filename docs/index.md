@@ -16,7 +16,7 @@
     <div class="hero__chip">Python 3.10 to 3.13</div>
     <div class="hero__chip">Public challenge + private verifier copy</div>
     <div class="hero__chip">Structured JSON answers</div>
-    <div class="hero__chip">CLI + API + local demo</div>
+    <div class="hero__chip">CLI + API + benchmark harness + local demo</div>
   </div>
 </div>
 
@@ -77,12 +77,15 @@ challenge = generate_challenge(
 response = AgentResponse(
     challenge_id=challenge.challenge_id,
     challenge_type=challenge.challenge_type,
-    payload={"answer": "EMBER-HARBOR-SIGNAL"},
+    payload={"answer": str(challenge.private_data["expected_answer"])},
 )
 result = verify_response(challenge, response)
 
 assert result.ok
 ```
+
+When you need a stronger language-recovery task, generate `multi_pass_lock` instead. It keeps the
+same verification model but adds multiple rule and transformation stages.
 
 ## Real public challenge and response
 
@@ -100,7 +103,7 @@ assert result.ok
   "version": "1",
   "data": {
     "difficulty": 2,
-    "profile": "llm_capability_v1",
+    "profile": "llm_capability_v2",
     "response_contract": {
       "payload.answer": "UPPERCASE ASCII words joined with hyphens",
       "payload.decoded_preview": "optional free-form notes"
@@ -163,7 +166,11 @@ Success result:
 <div class="tile-grid">
   <div class="tile">
     <h3>obfuscated_text_lock</h3>
-    <p>Primary challenge family for external LLM clients. No built-in solver by design.</p>
+    <p>Primary challenge family for external LLM clients, with stronger obfuscated prompt patterns.</p>
+  </div>
+  <div class="tile">
+    <h3>multi_pass_lock</h3>
+    <p>Harder LLM family that layers filtering, transforms, and ordering into one prompt.</p>
   </div>
   <div class="tile">
     <h3>proof_of_work</h3>
@@ -174,6 +181,18 @@ Success result:
     <p>Readable exact-constraint baseline that stays easy to inspect locally.</p>
   </div>
 </div>
+
+## Benchmarking
+
+Use the built-in harness to compare weak non-LLM baselines against generated LLM-family
+challenges:
+
+```bash
+agentproof benchmark obfuscated_text_lock --iterations 25 --difficulty 2 --template amber_sort
+```
+
+It reports per-solver attempts, solves, and success rate so you can see how often brittle parsers
+still succeed against the current prompt family.
 
 ## What it is not
 

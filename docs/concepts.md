@@ -1,16 +1,18 @@
 # Challenge Types
 
-`agentproof` ships one primary LLM-capability challenge family and two baseline families.
+`agentproof` ships two LLM-capability challenge families and two baseline families.
 
 ## `obfuscated_text_lock`
 
 Use this when you want the challenge itself to depend on recovering intent from obfuscated text.
+This family now uses stronger prompt patterns than the earlier literal style, while keeping exact
+verification.
 
 What the client does:
 
 - reads a noisy, shuffled instruction prompt
 - recovers the rule hidden in the text
-- returns a structured JSON payload with an exact answer
+- returns a structured JSON payload with an exact answer in uppercase hyphenated form
 
 What the server verifies:
 
@@ -30,6 +32,42 @@ Typical use cases:
 - LLM-capability CAPTCHA experiments
 - challenge-response gates for LLM-first APIs
 - testing whether clients can recover intent from obfuscated text
+
+Important constraint:
+
+- there is intentionally no bundled solver for this family
+- the challenge must be solved by an external LLM-capable client
+
+## `multi_pass_lock`
+
+Use this when the single-step obfuscated family is not enough and you want a harder prompt that
+requires multiple transformations before the final answer.
+
+What the client does:
+
+- recovers a noisy instruction prompt
+- keeps only the relevant entries
+- applies one or more transformations such as reverse, trim, or clip
+- orders the result and returns the uppercase hyphenated answer
+
+What the server verifies:
+
+- challenge ID matches
+- response is not expired
+- `payload.answer` exists and matches the required format
+- the normalized answer equals the private expected answer
+
+Built-in templates:
+
+- `warm_reverse_length`
+- `echo_clip_desc`
+- `vowel_trim_desc`
+
+Typical use cases:
+
+- harder LLM-capability CAPTCHA experiments
+- regression testing against stronger obfuscated prompts
+- evaluating how brittle parser-style solvers degrade as prompt complexity rises
 
 Important constraint:
 
@@ -98,6 +136,16 @@ fails, a concrete failure reason such as:
 - `wrong_word_count`
 - `required_word_constraint_failed`
 - `initial_sum_mismatch`
+
+## Benchmarking
+
+`agentproof` includes a benchmark harness for the LLM families. It runs generated challenges
+through bundled non-LLM baseline solvers and reports attempts, solves, and success rates.
+
+Use it when you want to compare:
+
+- `obfuscated_text_lock` against older literal parsers
+- `multi_pass_lock` against the same parsers under higher prompt complexity
 
 ## Extending the library
 

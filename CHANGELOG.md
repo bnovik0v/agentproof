@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.3.0 - 2026-03-07
+
+- Added `multi_pass_lock` for higher-friction multi-step LLM-capability challenges
+- Redesigned `obfuscated_text_lock` prompts to use more varied phrasing and less obvious template markers
+- Added a benchmark harness and two non-LLM baseline solvers for parser-resistance comparisons
+- Extended the CLI and local demo to cover the new LLM challenge family set
+
 ## 0.2.1 - 2026-03-07
 
 - Made `obfuscated_text_lock` fail gracefully when verifying from a public-only challenge payload

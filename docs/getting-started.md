@@ -43,15 +43,22 @@ public_payload = challenge.to_dict()
 
 # Send public_payload to your client.
 # The server keeps the original challenge object.
+# For a local smoke test, simulate the client with the private expected answer.
 response = AgentResponse(
     challenge_id=challenge.challenge_id,
     challenge_type=challenge.challenge_type,
-    payload={"answer": "EMBER-HARBOR-SIGNAL"},
+    payload={"answer": str(challenge.private_data["expected_answer"])},
 )
 
 result = verify_response(challenge, response)
 assert result.ok
 ```
+
+If you want a tougher LLM-only challenge, use `challenge_type="multi_pass_lock"` with one of:
+
+- `warm_reverse_length`
+- `echo_clip_desc`
+- `vowel_trim_desc`
 
 Important detail:
 
@@ -81,7 +88,29 @@ agentproof generate obfuscated_text_lock \
 The internal file is for your server-side verifier.
 The public file is what you hand to the client.
 
-`agentproof solve` intentionally does not support `obfuscated_text_lock`.
+### Harder multi-pass family
+
+```bash
+agentproof generate multi_pass_lock \
+  --difficulty 2 \
+  --template warm_reverse_length \
+  --output challenge.internal.json \
+  --public-output challenge.public.json
+```
+
+`agentproof solve` intentionally does not support `obfuscated_text_lock` or `multi_pass_lock`.
+
+### Benchmark harness
+
+```bash
+agentproof benchmark multi_pass_lock \
+  --iterations 25 \
+  --difficulty 2 \
+  --template warm_reverse_length \
+  --output report.json
+```
+
+You can run the same benchmark from Python with `agentproof.run_benchmark(...)`.
 
 ## Service flow
 
@@ -107,5 +136,5 @@ Then open:
 http://127.0.0.1:8765
 ```
 
-The demo starts with `obfuscated_text_lock` selected and lets you paste a manual LLM response into
-the browser before verifying it.
+The demo starts with `obfuscated_text_lock` selected, supports `multi_pass_lock` as well, and lets
+you paste a manual LLM response into the browser before verifying it.

@@ -108,6 +108,45 @@ def test_demo_obfuscated_manual_verify() -> None:
         thread.join(timeout=5)
 
 
+def test_demo_multi_pass_manual_verify() -> None:
+    module = load_demo_app_module()
+    server, thread = module.serve_in_background(port=0)
+    host, port = cast(tuple[str, int], server.server_address)
+    base_url = f"http://{host}:{port}"
+    try:
+        for _ in range(10):
+            if thread.is_alive():
+                break
+            time.sleep(0.05)
+
+        challenge = request_json(
+            f"{base_url}/api/challenge",
+            {
+                "challenge_type": "multi_pass_lock",
+                "difficulty": 2,
+                "template": "warm_reverse_length",
+                "ttl_seconds": 120,
+            },
+        )
+        internal = module.ISSUED_CHALLENGES[cast(str, challenge["challenge_id"])]
+        response = {
+            "challenge_id": challenge["challenge_id"],
+            "challenge_type": challenge["challenge_type"],
+            "payload": {"answer": internal.private_data["expected_answer"]},
+        }
+        result = request_json(
+            f"{base_url}/api/verify",
+            {"challenge_id": challenge["challenge_id"], "response": response},
+        )
+
+        assert challenge["challenge_type"] == "multi_pass_lock"
+        assert result["ok"] is True
+    finally:
+        server.shutdown()
+        server.server_close()
+        thread.join(timeout=5)
+
+
 def test_demo_verify_rejects_unknown_challenge_id() -> None:
     module = load_demo_app_module()
     server, thread = module.serve_in_background(port=0)

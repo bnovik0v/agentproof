@@ -116,6 +116,46 @@ def test_cli_generate_obfuscated_public_and_internal_files(tmp_path: Path) -> No
     assert result["ok"] is True
 
 
+def test_cli_generate_multi_pass_public_and_internal_files(tmp_path: Path) -> None:
+    internal_file = tmp_path / "challenge.internal.json"
+    public_file = tmp_path / "challenge.public.json"
+    response_file = tmp_path / "response.json"
+    result_file = tmp_path / "result.json"
+
+    assert (
+        main(
+            [
+                "generate",
+                "multi_pass_lock",
+                "--difficulty",
+                "2",
+                "--template",
+                "warm_reverse_length",
+                "--output",
+                str(internal_file),
+                "--public-output",
+                str(public_file),
+            ]
+        )
+        == 0
+    )
+
+    internal_challenge = json.loads(internal_file.read_text(encoding="utf-8"))
+    response = {
+        "challenge_id": internal_challenge["challenge_id"],
+        "challenge_type": internal_challenge["challenge_type"],
+        "payload": {"answer": internal_challenge["private_data"]["expected_answer"]},
+    }
+    response_file.write_text(json.dumps(response), encoding="utf-8")
+
+    assert (
+        main(["verify", str(internal_file), str(response_file), "--output", str(result_file)])
+        == 0
+    )
+    result = json.loads(result_file.read_text(encoding="utf-8"))
+    assert result["ok"] is True
+
+
 def test_cli_solve_obfuscated_returns_nonzero(tmp_path: Path) -> None:
     challenge_file = tmp_path / "challenge.json"
     assert (
@@ -134,6 +174,30 @@ def test_cli_solve_obfuscated_returns_nonzero(tmp_path: Path) -> None:
         exit_code = main(["solve", str(challenge_file)])
     assert exit_code == 2
     assert "no built-in solver" in stderr.getvalue()
+
+
+def test_cli_benchmark_returns_report(tmp_path: Path) -> None:
+    report_file = tmp_path / "report.json"
+    assert (
+        main(
+            [
+                "benchmark",
+                "obfuscated_text_lock",
+                "--iterations",
+                "4",
+                "--difficulty",
+                "2",
+                "--template",
+                "amber_sort",
+                "--output",
+                str(report_file),
+            ]
+        )
+        == 0
+    )
+    report = json.loads(report_file.read_text(encoding="utf-8"))
+    assert report["challenge_type"] == "obfuscated_text_lock"
+    assert len(report["baselines"]) == 2
 
 
 def test_cli_verify_public_obfuscated_file_fails_cleanly(tmp_path: Path) -> None:

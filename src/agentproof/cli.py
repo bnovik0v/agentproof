@@ -9,6 +9,7 @@ from pathlib import Path
 from typing import Any, cast
 
 from agentproof.api import generate_challenge, solve_challenge, verify_response
+from agentproof.benchmarking import run_benchmark
 from agentproof.exceptions import SolverUnavailableError
 from agentproof.models import AgentResponse, Challenge, ChallengeSpec
 
@@ -39,14 +40,19 @@ def _response_from_dict(data: dict[str, Any]) -> AgentResponse:
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         prog="agentproof",
-        description="Agent-oriented verification challenges",
+        description="LLM-capability CAPTCHA and verification challenges",
     )
     subparsers = parser.add_subparsers(dest="command", required=True)
 
     generate_parser = subparsers.add_parser("generate", help="Generate a challenge")
     generate_parser.add_argument(
         "challenge_type",
-        choices=["obfuscated_text_lock", "proof_of_work", "semantic_math_lock"],
+        choices=[
+            "multi_pass_lock",
+            "obfuscated_text_lock",
+            "proof_of_work",
+            "semantic_math_lock",
+        ],
     )
     generate_parser.add_argument("--difficulty", type=int, default=0)
     generate_parser.add_argument("--ttl-seconds", type=int, default=120)
@@ -54,8 +60,16 @@ def build_parser() -> argparse.ArgumentParser:
     generate_parser.add_argument("--word-count", type=int, default=8)
     generate_parser.add_argument(
         "--template",
-        choices=["amber_sort", "echo_reverse", "vowel_count"],
-        default="amber_sort",
+        choices=[
+            "random",
+            "amber_sort",
+            "echo_reverse",
+            "vowel_count",
+            "warm_reverse_length",
+            "echo_clip_desc",
+            "vowel_trim_desc",
+        ],
+        default="random",
     )
     generate_parser.add_argument("--output")
     generate_parser.add_argument(
@@ -75,6 +89,19 @@ def build_parser() -> argparse.ArgumentParser:
     verify_parser.add_argument("response_file")
     verify_parser.add_argument("--output")
 
+    benchmark_parser = subparsers.add_parser(
+        "benchmark",
+        help="Run non-LLM baseline solvers against generated public challenges",
+    )
+    benchmark_parser.add_argument(
+        "challenge_type",
+        choices=["obfuscated_text_lock", "multi_pass_lock"],
+    )
+    benchmark_parser.add_argument("--iterations", type=int, default=25)
+    benchmark_parser.add_argument("--difficulty", type=int, default=2)
+    benchmark_parser.add_argument("--template", default="random")
+    benchmark_parser.add_argument("--output")
+
     return parser
 
 
@@ -86,7 +113,7 @@ def main(argv: list[str] | None = None) -> int:
         options: dict[str, Any] = {}
         if args.challenge_type == "semantic_math_lock":
             options = {"topic": args.topic, "word_count": args.word_count}
-        if args.challenge_type == "obfuscated_text_lock":
+        if args.challenge_type in {"obfuscated_text_lock", "multi_pass_lock"}:
             options = {"template": args.template}
         spec = ChallengeSpec(
             challenge_type=args.challenge_type,
@@ -108,6 +135,16 @@ def main(argv: list[str] | None = None) -> int:
             print(str(exc), file=sys.stderr)
             return 2
         _write_json(response.to_dict(), args.output)
+        return 0
+
+    if args.command == "benchmark":
+        report = run_benchmark(
+            challenge_type=args.challenge_type,
+            iterations=args.iterations,
+            difficulty=args.difficulty,
+            template=args.template,
+        )
+        _write_json(report.to_dict(), args.output)
         return 0
 
     challenge = _challenge_from_dict(_read_json(args.challenge_file))

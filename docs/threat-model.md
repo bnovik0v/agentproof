@@ -4,6 +4,7 @@
 
 - adding a structured LLM-capability challenge before access to an API
 - requiring clients to recover intent from obfuscated text
+- raising the cost of brittle parser-style solvers with stronger prompt families
 - enforcing machine-readable responses
 - keeping private verification data on the server while exposing only the public challenge
 
@@ -38,6 +39,10 @@ Use `agentproof` as one signal in a broader system. In production, combine it wi
 - replay protection
 - logging and abuse monitoring
 
+Use the benchmark harness to measure one narrow question: how often simple non-LLM baseline
+solvers still pass your current public prompt family. Treat that as regression data, not as a full
+security evaluation.
+
 ## Why the verification is strict
 
 The library prefers exact constraints over fuzzy scoring so that:
@@ -48,7 +53,7 @@ The library prefers exact constraints over fuzzy scoring so that:
 
 ## Why the public and private payload split matters
 
-For the obfuscated family:
+For the LLM families:
 
 - the public challenge should travel to the client
 - the private expected answer should not

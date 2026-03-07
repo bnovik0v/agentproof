@@ -1,6 +1,7 @@
 """Challenge handler registry."""
 
 from agentproof.challenges.base import ChallengeHandler
+from agentproof.challenges.multi_pass import MultiPassHandler
 from agentproof.challenges.obfuscated_text import ObfuscatedTextHandler
 from agentproof.challenges.proof_of_work import ProofOfWorkHandler
 from agentproof.challenges.semantic_math import SemanticMathHandler
@@ -12,6 +13,7 @@ class ChallengeRegistry:
 
     def __init__(self) -> None:
         self._handlers: dict[str, ChallengeHandler] = {
+            "multi_pass_lock": MultiPassHandler(),
             "obfuscated_text_lock": ObfuscatedTextHandler(),
             "proof_of_work": ProofOfWorkHandler(),
             "semantic_math_lock": SemanticMathHandler(),

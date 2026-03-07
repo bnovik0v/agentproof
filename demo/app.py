@@ -279,7 +279,7 @@ HTML = """<!doctype html>
       <aside class="card stats">
         <div class="stat">
           <strong>Primary family</strong>
-          obfuscated_text_lock
+          obfuscated_text_lock and multi_pass_lock
         </div>
         <div class="stat">
           <strong>Intent</strong>
@@ -302,12 +302,13 @@ HTML = """<!doctype html>
           <label for="challengeType">Challenge type</label>
           <select id="challengeType">
             <option value="obfuscated_text_lock" selected>obfuscated_text_lock</option>
+            <option value="multi_pass_lock">multi_pass_lock</option>
             <option value="proof_of_work">proof_of_work</option>
             <option value="semantic_math_lock">semantic_math_lock</option>
           </select>
         </div>
         <div class="field">
-          <label for="template">Obfuscated template</label>
+          <label for="template">LLM template</label>
           <select id="template">
             <option value="amber_sort">amber_sort</option>
             <option value="echo_reverse">echo_reverse</option>
@@ -340,8 +341,8 @@ HTML = """<!doctype html>
           <button class="ghost" id="verifyButton">3. Verify response</button>
         </div>
         <p class="hint">
-          For <code>obfuscated_text_lock</code>, paste an LLM-produced JSON
-          response into the editor.
+          For <code>obfuscated_text_lock</code> and <code>multi_pass_lock</code>,
+          paste an LLM-produced JSON response into the editor.
           The built-in solver button is only for the baseline families.
         </p>
       </aside>
@@ -393,6 +394,10 @@ HTML = """<!doctype html>
     const resultJson = document.getElementById("resultJson");
     const statusBox = document.getElementById("statusBox");
     const challengeBadge = document.getElementById("challengeBadge");
+    const templateOptions = {
+      obfuscated_text_lock: ["amber_sort", "echo_reverse", "vowel_count"],
+      multi_pass_lock: ["warm_reverse_length", "echo_clip_desc", "vowel_trim_desc"],
+    };
 
     function setStatus(ok, message) {
       statusBox.textContent = message;
@@ -401,7 +406,7 @@ HTML = """<!doctype html>
 
     function scaffoldResponse(challenge) {
       const payload = { answer: "PASTE-LLM-ANSWER-HERE" };
-      if (challenge.challenge_type !== "obfuscated_text_lock") {
+      if (!["obfuscated_text_lock", "multi_pass_lock"].includes(challenge.challenge_type)) {
         return {};
       }
       return {
@@ -425,14 +430,26 @@ HTML = """<!doctype html>
       return JSON.parse(responseBody || "{}");
     }
 
+    function syncTemplateOptions() {
+      const options = templateOptions[challengeType.value] || [];
+      template.innerHTML = "";
+      for (const optionValue of options) {
+        const option = document.createElement("option");
+        option.value = optionValue;
+        option.textContent = optionValue;
+        template.appendChild(option);
+      }
+    }
+
     challengeType.addEventListener("change", () => {
       const isSemantic = challengeType.value === "semantic_math_lock";
-      const isObfuscated = challengeType.value === "obfuscated_text_lock";
+      const isLlmFamily = ["obfuscated_text_lock", "multi_pass_lock"].includes(challengeType.value);
       topic.disabled = !isSemantic;
       wordCount.disabled = !isSemantic;
-      template.disabled = !isObfuscated;
-      difficulty.max = isObfuscated ? "3" : "64";
-      if (isObfuscated) {
+      template.disabled = !isLlmFamily;
+      syncTemplateOptions();
+      difficulty.max = isLlmFamily ? "3" : "64";
+      if (isLlmFamily) {
         difficulty.value = "2";
       } else if (difficulty.value === "2") {
         difficulty.value = "16";
@@ -455,9 +472,13 @@ HTML = """<!doctype html>
         challengeJson.textContent = JSON.stringify(challenge, null, 2);
         responseEditor.value = JSON.stringify(scaffoldResponse(challenge), null, 2);
         resultJson.textContent = "{}";
+        const llmPrompt = [
+          "obfuscated_text_lock",
+          "multi_pass_lock",
+        ].includes(challenge.challenge_type);
         setStatus(
           false,
-          challenge.challenge_type === "obfuscated_text_lock"
+          llmPrompt
             ? "Public challenge generated. Send it to an LLM-capable client, "
               + "then paste the JSON response."
             : "Challenge generated. You can use the built-in solver or edit a response manually.",
@@ -588,6 +609,8 @@ def build_spec(payload: dict[str, Any]) -> ChallengeSpec:
         }
     if challenge_type == "obfuscated_text_lock":
         options = {"template": str(payload.get("template", "amber_sort"))}
+    if challenge_type == "multi_pass_lock":
+        options = {"template": str(payload.get("template", "warm_reverse_length"))}
     return ChallengeSpec(
         challenge_type=challenge_type,
         ttl_seconds=ttl_seconds,

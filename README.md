@@ -62,16 +62,19 @@ challenge = generate_challenge(
 public_challenge = challenge.to_dict()
 
 # Send public_challenge to an LLM-capable client.
-# The client responds with structured JSON.
+# For a local smoke test, simulate that client with the private expected answer.
 response = AgentResponse(
     challenge_id=challenge.challenge_id,
     challenge_type=challenge.challenge_type,
-    payload={"answer": "EMBER-HARBOR-SIGNAL"},
+    payload={"answer": str(challenge.private_data["expected_answer"])},
 )
 
 result = verify_response(challenge, response)
 assert result.ok
 ```
+
+For a harder LLM-only variant, switch `challenge_type` to `multi_pass_lock`. That family adds
+extra transformation steps on top of the same exact answer contract.
 
 ## What the public challenge looks like
 
@@ -84,7 +87,7 @@ assert result.ok
   "expires_at": "2026-03-07T03:00:20.639623+00:00",
   "data": {
     "difficulty": 2,
-    "profile": "llm_capability_v1",
+    "profile": "llm_capability_v2",
     "response_contract": {
       "payload.answer": "UPPERCASE ASCII words joined with hyphens",
       "payload.decoded_preview": "optional free-form notes"
@@ -125,12 +128,14 @@ And verification returns:
 
 | Challenge type | Role | Built-in solver |
 | --- | --- | --- |
-| `obfuscated_text_lock` | Primary LLM-capability challenge | No |
+| `obfuscated_text_lock` | Primary obfuscated LLM challenge with stronger prompt patterns | No |
+| `multi_pass_lock` | Harder multi-step obfuscated LLM challenge | No |
 | `proof_of_work` | Deterministic compute baseline | Yes |
 | `semantic_math_lock` | Readable exact-constraint baseline | Yes |
 
-`obfuscated_text_lock` is the main product path. It is meant to be solved by an external
-LLM-capable client, not by a bundled reference solver.
+The two `*_lock` LLM families are meant to be solved by an external LLM-capable client, not by a
+bundled reference solver. Both require `payload.answer` to be uppercase ASCII words joined with
+hyphens. `obfuscated_text_lock` also accepts optional `payload.decoded_preview`.
 
 ## CLI
 
@@ -155,6 +160,40 @@ agentproof generate obfuscated_text_lock \
 Use `challenge.public.json` for the client and keep `challenge.internal.json` server-side for
 verification.
 
+Harder multi-pass flow:
+
+```bash
+agentproof generate multi_pass_lock \
+  --difficulty 2 \
+  --template warm_reverse_length \
+  --output challenge.internal.json \
+  --public-output challenge.public.json
+```
+
+Benchmark the non-LLM baselines:
+
+```bash
+agentproof benchmark multi_pass_lock \
+  --iterations 25 \
+  --difficulty 2 \
+  --template warm_reverse_length
+```
+
+Or from Python:
+
+```python
+from agentproof import run_benchmark
+
+report = run_benchmark(
+    challenge_type="obfuscated_text_lock",
+    iterations=25,
+    difficulty=2,
+    template="amber_sort",
+)
+
+print(report.to_dict())
+```
+
 ## Demo
 
 Run the local demo:
@@ -165,8 +204,8 @@ uv run python demo/app.py
 
 Then open `http://127.0.0.1:8765`.
 
-The demo centers the obfuscated challenge flow and lets you paste a real LLM response into the
-browser before verifying it.
+The demo centers the LLM challenge flows and lets you paste a real LLM response into the browser
+before verifying it.
 
 ## What this proves
 

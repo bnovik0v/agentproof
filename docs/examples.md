@@ -17,7 +17,31 @@ challenge = generate_challenge(
 response = AgentResponse(
     challenge_id=challenge.challenge_id,
     challenge_type=challenge.challenge_type,
-    payload={"answer": "EMBER-HARBOR-SIGNAL"},
+    payload={"answer": str(challenge.private_data["expected_answer"])},
+)
+
+result = verify_response(challenge, response)
+
+assert result.ok
+```
+
+## Harder multi-pass example
+
+```python
+from agentproof import AgentResponse, ChallengeSpec, generate_challenge, verify_response
+
+challenge = generate_challenge(
+    ChallengeSpec(
+        challenge_type="multi_pass_lock",
+        difficulty=2,
+        options={"template": "warm_reverse_length"},
+    )
+)
+
+response = AgentResponse(
+    challenge_id=challenge.challenge_id,
+    challenge_type=challenge.challenge_type,
+    payload={"answer": str(challenge.private_data["expected_answer"])},
 )
 
 result = verify_response(challenge, response)
@@ -45,6 +69,35 @@ agentproof generate obfuscated_text_lock \
   --public-output challenge.public.json
 ```
 
+## CLI generation for the harder family
+
+```bash
+agentproof generate multi_pass_lock \
+  --difficulty 2 \
+  --template warm_reverse_length \
+  --output challenge.internal.json \
+  --public-output challenge.public.json
+```
+
+## Benchmark report
+
+```python
+from agentproof import run_benchmark
+
+report = run_benchmark(
+    challenge_type="obfuscated_text_lock",
+    iterations=10,
+    difficulty=2,
+    template="amber_sort",
+)
+
+print(report.to_dict())
+```
+
+```bash
+agentproof benchmark multi_pass_lock --iterations 10 --difficulty 2 --template warm_reverse_length
+```
+
 ## Baseline family with a bundled solver
 
 ```python
@@ -61,7 +114,7 @@ assert result.ok
 
 ## Failure example
 
-If the client sends the wrong format for `obfuscated_text_lock`, the result looks like:
+If the client sends the wrong format for either LLM family, the result looks like:
 
 ```json
 {
@@ -84,7 +137,7 @@ uv run python demo/app.py
 
 The demo lets you:
 
-- generate a public obfuscated challenge
+- generate public LLM-family challenges
 - paste a manual LLM response into the editor
 - use the bundled solver for the baseline families
 - inspect the raw JSON and failure modes

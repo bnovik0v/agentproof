@@ -1,4 +1,4 @@
-"""Obfuscated language challenge aimed at LLM-capable clients."""
+"""Multi-step obfuscated challenge family for stronger LLM-capability probing."""
 
 from __future__ import annotations
 
@@ -13,15 +13,17 @@ from agentproof.challenges.llm_common import (
     TOKEN_POOL,
     VOWEL_PAIR_POOL,
     alias_line,
+    alpha_desc_order_line,
     choose_lexicon,
+    clip_line,
     filter_line,
     high_low_order_line,
     hyphenated_upper,
     is_hyphen_answer,
     length_order_line,
-    low_high_order_line,
     position_catalog_lines,
     reverse_line,
+    trim_tail_line,
     vowel_count,
     vowel_line,
     word_catalog_lines,
@@ -41,8 +43,8 @@ from agentproof.utils.obfuscation import obfuscate_prompt
 TemplateBuilder = Callable[[random.Random], tuple[list[str], str]]
 
 
-class ObfuscatedTextHandler:
-    """Generate and verify LLM-capability prompts with exact output rules."""
+class MultiPassHandler:
+    """Generate harder prompts that require multiple inference/transformation steps."""
 
     def generate(self, spec: ChallengeSpec) -> Challenge:
         challenge_id = secrets.token_hex(8)
@@ -53,7 +55,7 @@ class ObfuscatedTextHandler:
         prompt, transform_chain = obfuscate_prompt(lines, difficulty=difficulty, rng=rng)
         data: dict[str, JSONValue] = {
             "difficulty": difficulty,
-            "profile": "llm_capability_v2",
+            "profile": "llm_capability_multi_pass_v1",
             "response_contract": {
                 "payload.answer": "UPPERCASE ASCII words joined with hyphens",
                 "payload.decoded_preview": "optional free-form notes",
@@ -76,8 +78,8 @@ class ObfuscatedTextHandler:
 
     def solve(self, challenge: Challenge) -> AgentResponse:
         raise SolverUnavailableError(
-            "obfuscated_text_lock has no built-in solver; send the public "
-            "challenge to an LLM-capable client"
+            "multi_pass_lock has no built-in solver; send the public challenge "
+            "to an LLM-capable client"
         )
 
     def verify(self, challenge: Challenge, response: AgentResponse) -> VerificationResult:
@@ -96,9 +98,6 @@ class ObfuscatedTextHandler:
         answer = response.payload.get("answer")
         if not isinstance(answer, str) or not answer.strip():
             return VerificationResult.failure("missing_answer")
-        decoded_preview = response.payload.get("decoded_preview")
-        if decoded_preview is not None and not isinstance(decoded_preview, str):
-            return VerificationResult.failure("invalid_decoded_preview")
         normalized_answer = answer.strip().upper()
         if not is_hyphen_answer(normalized_answer):
             return VerificationResult.failure("invalid_answer_format")
@@ -115,7 +114,7 @@ class ObfuscatedTextHandler:
 
     @staticmethod
     def _difficulty_for_spec(spec: ChallengeSpec) -> int:
-        difficulty = spec.difficulty or 1
+        difficulty = spec.difficulty or 2
         return max(1, min(3, difficulty))
 
     @staticmethod
@@ -124,29 +123,29 @@ class ObfuscatedTextHandler:
         if not isinstance(template_id, str):
             raise ValueError("template must be a string")
         if template_id == "random":
-            return random.choice(tuple(ObfuscatedTextHandler._template_builders()))
-        if template_id not in ObfuscatedTextHandler._template_builders():
-            raise ValueError(f"unsupported obfuscated_text_lock template: {template_id}")
+            return random.choice(tuple(MultiPassHandler._template_builders()))
+        if template_id not in MultiPassHandler._template_builders():
+            raise ValueError(f"unsupported multi_pass_lock template: {template_id}")
         return template_id
 
     @staticmethod
     def _template_builders() -> dict[str, TemplateBuilder]:
         return {
-            "amber_sort": _build_amber_sort,
-            "echo_reverse": _build_echo_reverse,
-            "vowel_count": _build_vowel_count,
+            "warm_reverse_length": _build_warm_reverse_length,
+            "echo_clip_desc": _build_echo_clip_desc,
+            "vowel_trim_desc": _build_vowel_trim_desc,
         }
 
 
-def _build_amber_sort(rng: random.Random) -> tuple[list[str], str]:
+def _build_warm_reverse_length(rng: random.Random) -> tuple[list[str], str]:
     lexicon = choose_lexicon(rng)
     alias = rng.choice(AMBER_ALIASES)
-    amber_words = rng.sample(TOKEN_POOL, 3)
-    noise_words = rng.sample([word for word in TOKEN_POOL if word not in amber_words], 2)
+    warm_words = rng.sample(TOKEN_POOL, 3)
+    noise_words = rng.sample([word for word in TOKEN_POOL if word not in warm_words], 2)
     entries = [
-        (2, "amber", amber_words[0]),
-        (1, "amber", amber_words[1]),
-        (4, "amber", amber_words[2]),
+        (2, "amber", warm_words[0]),
+        (4, "amber", warm_words[1]),
+        (1, "amber", warm_words[2]),
         (3, "cobalt", noise_words[0]),
         (5, "violet", noise_words[1]),
     ]
@@ -155,7 +154,8 @@ def _build_amber_sort(rng: random.Random) -> tuple[list[str], str]:
         lexicon.intro,
         alias_line(alias, "amber"),
         filter_line(lexicon.entry, alias),
-        low_high_order_line(lexicon.position, rng),
+        reverse_line(lexicon.entry),
+        length_order_line(rng),
         lexicon.emit,
         lexicon.noise,
         *position_catalog_lines(
@@ -165,28 +165,31 @@ def _build_amber_sort(rng: random.Random) -> tuple[list[str], str]:
             rng=rng,
         ),
     ]
-    ordered = [word for position, label, word in sorted(entries) if label == "amber"]
-    return lines, hyphenated_upper(ordered)
+    transformed = sorted(
+        [word[::-1] for _, label, word in entries if label == "amber"],
+        key=lambda word: (len(word), word),
+    )
+    return lines, hyphenated_upper(transformed)
 
 
-def _build_echo_reverse(rng: random.Random) -> tuple[list[str], str]:
+def _build_echo_clip_desc(rng: random.Random) -> tuple[list[str], str]:
     lexicon = choose_lexicon(rng)
     alias = rng.choice(ECHO_ALIASES)
     echo_words = rng.sample(TOKEN_POOL, 3)
     other_words = rng.sample([word for word in TOKEN_POOL if word not in echo_words], 2)
     entries = [
         (1, "echo", echo_words[0]),
-        (3, "echo", echo_words[1]),
-        (4, "echo", echo_words[2]),
-        (2, "moss", other_words[0]),
-        (5, "glow", other_words[1]),
+        (4, "echo", echo_words[1]),
+        (3, "echo", echo_words[2]),
+        (2, "glow", other_words[0]),
+        (5, "moss", other_words[1]),
     ]
     rng.shuffle(entries)
     lines = [
         lexicon.intro,
         alias_line(alias, "echo"),
         filter_line(lexicon.entry, alias),
-        reverse_line(lexicon.entry),
+        clip_line(lexicon.entry, 4),
         high_low_order_line(lexicon.position, rng),
         lexicon.emit,
         lexicon.noise,
@@ -197,25 +200,28 @@ def _build_echo_reverse(rng: random.Random) -> tuple[list[str], str]:
             rng=rng,
         ),
     ]
-    selected = [
-        word[::-1] for position, label, word in sorted(entries, reverse=True) if label == "echo"
+    transformed = [
+        word[:4]
+        for position, label, word in sorted(entries, reverse=True)
+        if label == "echo"
     ]
-    return lines, hyphenated_upper(selected)
+    return lines, hyphenated_upper(transformed)
 
 
-def _build_vowel_count(rng: random.Random) -> tuple[list[str], str]:
+def _build_vowel_trim_desc(rng: random.Random) -> tuple[list[str], str]:
     lexicon = choose_lexicon(rng)
     words = rng.sample(VOWEL_PAIR_POOL, 5)
     lines = [
         lexicon.intro,
         vowel_line(lexicon.entry),
-        length_order_line(rng),
+        trim_tail_line(lexicon.entry),
+        alpha_desc_order_line(rng),
         lexicon.emit,
         lexicon.noise,
         *word_catalog_lines(words, board_word=lexicon.board, entry_word=lexicon.entry, rng=rng),
     ]
-    selected = sorted(
-        [word for word in words if vowel_count(word) == 2],
-        key=lambda word: (len(word), word),
+    transformed = sorted(
+        [word[:-1] for word in words if vowel_count(word) == 2],
+        reverse=True,
     )
-    return lines, hyphenated_upper(selected)
+    return lines, hyphenated_upper(transformed)

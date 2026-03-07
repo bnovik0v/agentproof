@@ -5,7 +5,7 @@
 ```python
 from agentproof import generate_challenge, solve_challenge, verify_response
 from agentproof import ChallengeSpec, Challenge, AgentResponse, VerificationResult
-from agentproof import SolverUnavailableError
+from agentproof import BenchmarkReport, SolverUnavailableError, run_benchmark
 ```
 
 ## `ChallengeSpec`
@@ -23,10 +23,10 @@ Example:
 
 ```python
 spec = ChallengeSpec(
-    challenge_type="obfuscated_text_lock",
+    challenge_type="multi_pass_lock",
     difficulty=2,
     ttl_seconds=90,
-    options={"template": "amber_sort"},
+    options={"template": "warm_reverse_length"},
 )
 ```
 
@@ -61,6 +61,11 @@ Important fields:
 - `challenge_type`
 - `payload`
 
+For the LLM families:
+
+- `payload.answer` is required and must be uppercase ASCII words joined with hyphens
+- `payload.decoded_preview` is optional for `obfuscated_text_lock`
+
 ## `VerificationResult`
 
 Returned by `verify_response(...)`.
@@ -91,6 +96,7 @@ Common failure values:
 - `challenge_type_mismatch`
 - `challenge_expired`
 - `missing_answer`
+- `invalid_decoded_preview`
 - `invalid_answer_format`
 - `answer_mismatch`
 - `missing_nonce`
@@ -112,3 +118,34 @@ Common failure values:
 `solve_challenge(...)` raises `SolverUnavailableError` for:
 
 - `obfuscated_text_lock`
+- `multi_pass_lock`
+
+## `run_benchmark(...)`
+
+Runs the bundled non-LLM baseline solvers against generated LLM-family challenges.
+
+Example:
+
+```python
+report = run_benchmark(
+    challenge_type="obfuscated_text_lock",
+    iterations=25,
+    difficulty=2,
+    template="amber_sort",
+)
+```
+
+Arguments:
+
+- `challenge_type`: `obfuscated_text_lock` or `multi_pass_lock`
+- `iterations`: number of generated challenges per baseline solver
+- `difficulty`: challenge difficulty passed through to generation
+- `template`: explicit template name or `random`
+
+`run_benchmark(...)` returns a `BenchmarkReport` with:
+
+- `challenge_type`
+- `difficulty`
+- `iterations`
+- `template`
+- `baselines`
