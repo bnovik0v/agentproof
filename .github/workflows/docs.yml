@@ -33,7 +33,7 @@ jobs:
           python -m pip install -e ".[docs]"
 
       - name: Configure Pages
-        uses: actions/configure-pages@v5
+        uses: actions/configure-pages@v6
 
       - name: Build docs
         run: python -m mkdocs build --strict
